@@ -3,19 +3,18 @@
 {-# LANGUAGE TypeOperators #-}
 
 module ManageMyTime
-    ( app
-    ) where
+    ( app, timeAPI, Task(..) ) where
 
 import GHC.Generics (Generic)
 import GHC.TypeLits (Symbol)
 import Control.Monad (mzero)
 import Text.Read (readMaybe)
 import Data.Text (Text, pack, unpack)
-import Data.ByteString (ByteString)
-import Data.ByteString.Conversion (ToByteString, builder)
-import Data.Maybe (fromMaybe)
+import Data.Text.Encoding (decodeUtf8')
+import Data.ByteString.Conversion (ToByteString, builder, FromByteString, parser)
 import Data.Aeson (ToJSON, toJSON, FromJSON, parseJSON, Value(String))
 import Data.Time.Calendar (Day, showGregorian)
+import Network.URI (parseURIReference)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Capture, Headers, Header, ReqBody,
                 QueryParam, Get, Post, Put, Delete)
@@ -42,12 +41,16 @@ instance ToJSON Day where
   toJSON d = toJSON (showGregorian d)
 
 instance FromJSON Day where
-  parseJSON (String s) = fromMaybe mzero $ fmap return $ readMaybe $ unpack s
+  parseJSON (String s) = maybe mzero return $ readMaybe $ unpack s
   parseJSON _ = mzero
 
 instance Servant.FromText Day where
   fromText = readMaybe . unpack
 
+instance Servant.ToText Day where
+  toText = pack . showGregorian
+
+instance ToJSON Registration
 instance ToJSON Task
 instance ToJSON User
 instance ToJSON Item
@@ -59,6 +62,16 @@ instance FromJSON Item
 -- this is correct only for ASCII urls, the proper solution would involve urlencoding and punycode
 instance ToByteString Servant.URI where
   builder uri = builder $ show uri
+
+instance FromByteString Servant.URI where
+  parser = do
+    ptxt <- fmap decodeUtf8' parser
+    let parseText (Right txt) = maybe invalidURI return $ parseURIReference $ unpack txt
+          where
+            invalidURI = fail $ "Invalid URI: " ++ show txt
+        parseText (Left exc) = fail $ "Invalid UTF-8: " ++ show exc
+    parseText ptxt
+
 
 type CRUD ty = Capture "id" Int :> Get '[JSON] ty
           :<|> ReqBody '[JSON] ty :>
@@ -118,7 +131,20 @@ getUsers = undefined
 
 
 server :: Servant.Server TimeAPI
-server = ((return . getTask) :<|> newTask :<|> updateTask :<|> deleteTask) :<|> (getItem :<|> newItem :<|> updateItem :<|> deleteItem) :<|> (getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours) :<|> (getProfile :<|> register :<|> updateProfile :<|> deleteProfile) :<|> (getUser :<|> newUser :<|> updateUser :<|> deleteUser) :<|> getTasks :<|> getItems :<|> getUsers
+server = taskCrud
+    :<|> itemCrud
+    :<|> preferredHoursCrud
+    :<|> profileCrud
+    :<|> userCrud
+    :<|> getTasks
+    :<|> getItems
+    :<|> getUsers
+
+taskCrud = (return . getTask) :<|> newTask :<|> updateTask :<|> deleteTask
+itemCrud = getItem :<|> newItem :<|> updateItem :<|> deleteItem
+preferredHoursCrud = getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours
+profileCrud = getProfile :<|> register :<|> updateProfile :<|> deleteProfile
+userCrud = getUser :<|> newUser :<|> updateUser :<|> deleteUser
 
 app :: Application
 app = Servant.serve timeAPI server

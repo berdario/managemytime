@@ -4,26 +4,32 @@ module Main where
 
 import Prelude hiding (length)
 import Data.ByteString (ByteString, length)
+import System.Environment (getArgs)
 
-import Network.Wai.Handler.Warp (getPort, defaultSettings)
+import Network.Wai.Handler.Warp (runSettings, getPort, defaultSettings)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsCiphers, tlsSettingsMemory, tlsAllowedVersions)
 
 import ManageMyTime (app)
 
-defaultTls = case (length cert > 15) of
+defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key
   False -> tlsSettingsMemory defaultCert defaultKey
 
-latestTLS = head $ reverse $ tlsAllowedVersions defaultTls
+latestTLS = last $ tlsAllowedVersions defaultTls
 ciphers = take 2 $ tlsCiphers defaultTls -- take the first 2, currently the GCM ciphers
 tlsSettings = defaultTls{tlsAllowedVersions=[latestTLS], tlsCiphers=ciphers}
 
+tlsServer = do
+  putStrLn $ "accepting " ++ show latestTLS ++ " with ciphers " ++ show ciphers
+  runTLS tlsSettings defaultSettings app
+
+testServer = runSettings defaultSettings app
 
 main :: IO ()
 main = do
- putStrLn $ "listening on " ++ (show $ getPort defaultSettings)
- putStrLn $ "accepting " ++ show latestTLS ++ " with ciphers " ++ show ciphers
- runTLS tlsSettings defaultSettings app
+  putStrLn $ "listening on " ++ show (getPort defaultSettings)
+  args <- getArgs
+  if args == ["test"] then testServer else tlsServer
 
 cert :: ByteString
 cert = "{{tls.cert}}"
