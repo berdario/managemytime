@@ -36,6 +36,8 @@ executable managemytime-exe
                      , managemytime
                      , servant-jquery
                      , warp
+                     , warp-tls
+                     , bytestring
   default-language:    Haskell2010
 
 test-suite managemytime-test

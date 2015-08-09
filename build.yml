@@ -1,0 +1,11 @@
+# run this with `ansible-playbook --ask-vault-pass build.yml`
+
+- hosts: localhost
+  connection: local
+  vars_files:
+    - tls.yml
+  tasks:
+    - name: insert certificate and private key in the sources
+      template: src=app/Main.hs dest=app/Main.hs backup=yes
+
+    - command: stack build
