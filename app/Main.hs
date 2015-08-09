@@ -1,6 +1,9 @@
 module Main where
 
-import Lib
+import Network.Wai.Handler.Warp (run)
+
+import ManageMyTime (app)
 
 main :: IO ()
-main = someFunc
+main = do
+ run 8080 app

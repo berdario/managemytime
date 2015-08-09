@@ -15,8 +15,17 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     ManageMyTime
   build-depends:       base >= 4.7 && < 5
+                     , servant
+                     , servant-docs
+                     , servant-server
+                     , wai
+                     , text
+                     , bytestring
+                     , aeson
+                     , time
+                     , bytestring-conversion
   default-language:    Haskell2010
 
 executable managemytime-exe
@@ -25,6 +34,8 @@ executable managemytime-exe
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , managemytime
+                     , servant-jquery
+                     , warp
   default-language:    Haskell2010
 
 test-suite managemytime-test
@@ -32,7 +43,10 @@ test-suite managemytime-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
+                     , tasty
+                     , tasty-hunit
                      , managemytime
+                     , servant-client
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
