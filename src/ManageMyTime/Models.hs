@@ -10,9 +10,8 @@
 {-# LANGUAGE TypeFamilies #-}
 
 
-module Models
-(Key, Item, User, doMigrations, runDb, toSqlKey, get, taskName)
- where
+module ManageMyTime.Models
+    (module ManageMyTime.Models, Key, toSqlKey, fromSqlKey, get, insert, insertUnique) where
 
 import Data.Maybe
 
@@ -25,11 +24,11 @@ import Data.Text (Text)
 import Data.ByteString (ByteString)
 import Data.Time.Calendar (Day)
 import Database.Persist (toJsonText)
-import Database.Persist.Sql (Key, PersistFieldSql, insert, get, getBy, entityKey, entityVal, toSqlKey, selectList, Entity)
+import Database.Persist.Sql (Key, PersistFieldSql, insert, insertUnique, get, getBy, entityKey, entityVal, toSqlKey, fromSqlKey, selectList, Entity, )
 import Database.Persist.Sqlite (SqlBackend(..), runSqlite, runMigration)
 import Database.Persist.TH (share, mkPersist, sqlSettings, mkMigrate, persistLowerCase)
 
-import Types
+import ManageMyTime.Types
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 User
@@ -63,24 +62,3 @@ doMigrations :: IO ()
 doMigrations = runSqlite connectionString $ runMigration migrateAll
 
 runDb query = runSqlite connectionString query
-
---getByKey = get . toSqlKey
-
-dostuff3 :: IO (Maybe Task)
-dostuff3 = runDb $ get $ toSqlKey 1
-
-dostuff2 :: IO [Entity Task]
-dostuff2 = runDb $ do
-  selectList [] []
-
-dostuff :: IO [Entity Task]
-dostuff = runSqlite connectionString $ do
-    runMigration migrateAll
-    --michaelId <- insert $ User "Michael" Normal "temp"
-    --taskId <- insert $ Task "foo" michaelId
-    --selectList [] []
-    --michael <- get michaelId
-    x <- getBy $ UniqueName "Michael"
-    y <- getBy $ UserTask "foo" (entityKey $ fromJust x)
-    --get $ toSqlKey 1
-    selectList [] []

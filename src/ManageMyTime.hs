@@ -3,8 +3,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module ManageMyTime
-    ( app, timeAPI, doMigrations ) where
+module ManageMyTime where
 
 import GHC.TypeLits (Symbol)
 import Control.Error.Util (note)
@@ -18,17 +17,18 @@ import Data.Time.Calendar (Day, showGregorian)
 import Database.Persist.Sql (Key)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Capture, Headers, Header, ReqBody,
-                QueryParam, Get, Post, Put, Delete, err404)
+                QueryParam, Get, Post, Put, Delete, err404, err409)
 import qualified Servant
+import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-import Models
-import Types
+import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb, Item(..), Task(..))
+import ManageMyTime.Types
 
 
 type CRUD ty = Capture "id" Int64 :> Get '[JSON] ty
           :<|> ReqBody '[JSON] ty :>
-                 Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ty))] ())
+                 Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ty))] Int64)
           :<|> Capture "id" Int64 :> ReqBody '[JSON] ty :> Put '[JSON] ()
           :<|> Capture "id" Int64 :> Delete '[JSON] ()
 
@@ -63,7 +63,12 @@ getTask :: Int64 -> AppM ClientTask
 getTask k = do
   mTask <- runDb $ get $ toSqlKey k
   hoistEither $ note err404 $ fmap taskName mTask
-newTask = undefined
+newTask taskname = do
+  mNewKey <- runDb $ insertUnique $ Task taskname $ toSqlKey 1
+  hoistEither $ case mNewKey of
+    (Just key) -> Right $ addHeader link $ fromSqlKey key
+                    where link = apiLink (Servant.Proxy :: Servant.Proxy ("task" :> Capture "id" Int64 :> Get '[JSON] ClientTask)) $ fromSqlKey key
+    Nothing -> Left err409
 updateTask = undefined
 deleteTask = undefined
 getItem = undefined

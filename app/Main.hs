@@ -9,7 +9,8 @@ import System.Environment (getArgs)
 import Network.Wai.Handler.Warp (runSettings, getPort, defaultSettings)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsCiphers, tlsSettingsMemory, tlsAllowedVersions)
 
-import ManageMyTime (app, doMigrations)
+import ManageMyTime (app)
+import ManageMyTime.Models (doMigrations)
 
 defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key

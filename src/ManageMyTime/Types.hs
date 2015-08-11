@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Types where
+module ManageMyTime.Types where
 
 import GHC.Generics (Generic)
 import Control.Monad (mzero)
