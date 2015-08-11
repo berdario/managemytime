@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TemplateHaskell #-}
-module ManageMyTime.Types where
+module ManageMyTime.Types (module ManageMyTime.Types, module ManageMyTime.UndecidableTypes) where
 
 import GHC.Generics (Generic)
 import Control.Monad (mzero)
@@ -14,6 +14,8 @@ import Data.ByteString.Conversion (ToByteString, builder, FromByteString, parser
 import Data.Time.Calendar (Day, showGregorian)
 import Database.Persist.TH (derivePersistField)
 import Servant (FromText, fromText, ToText, toText, URI)
+
+import ManageMyTime.UndecidableTypes
 
 instance ToJSON Day where
   toJSON d = toJSON (showGregorian d)

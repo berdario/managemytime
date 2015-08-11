@@ -71,7 +71,7 @@ setupFixture = runDb $ do
 
 
 taskTests = testGroup "/task tests"
-  [testCase "getTask" $ assert "foo" $ getTask 1
+  [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
   ,testCase "newTask" $ do
      response <- run $ newTask "fooz"
      assert "fooz" $ getTask $ getResponse response

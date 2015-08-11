@@ -14,7 +14,6 @@ import Data.Map (Map)
 import Data.Text (Text, pack, unpack)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Time.Calendar (Day, showGregorian)
-import Database.Persist.Sql (Key)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Capture, Headers, Header, ReqBody,
                 QueryParam, Get, Post, Put, Delete, err404, err409)
@@ -22,15 +21,14 @@ import qualified Servant
 import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb, Item(..), Task(..))
+import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb, Key, Item(..), Task(..), User(..))
 import ManageMyTime.Types
 
-
-type CRUD ty = Capture "id" Int64 :> Get '[JSON] ty
-          :<|> ReqBody '[JSON] ty :>
-                 Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ty))] Int64)
-          :<|> Capture "id" Int64 :> ReqBody '[JSON] ty :> Put '[JSON] ()
-          :<|> Capture "id" Int64 :> Delete '[JSON] ()
+type CRUD kty ty = Capture "id" kty :> Get '[JSON] ty
+              :<|> ReqBody '[JSON] ty :>
+                     Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ty))] kty)
+              :<|> Capture "id" kty :> ReqBody '[JSON] ty :> Put '[JSON] ()
+              :<|> Capture "id" kty :> Delete '[JSON] ()
 
 type CRUDProfile = Get '[JSON] ClientUser
               :<|> ReqBody '[JSON] Registration :>
@@ -38,13 +36,19 @@ type CRUDProfile = Get '[JSON] ClientUser
               :<|> ReqBody '[JSON] ClientUser :> Put '[JSON] ()
               :<|> Delete '[JSON] ()
 
+type CRUDHours = Get '[JSON] Int
+            :<|> ReqBody '[JSON] Int :>
+                   Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] Int))] ())
+            :<|> ReqBody '[JSON] Int :> Put '[JSON] ()
+            :<|> Delete '[JSON] ()
+
 type GetItems = QueryParam "from" Day :> QueryParam "to" Day :> Get '[JSON] [Item]
 
-type TimeAPI = "task" :> CRUD ClientTask
-          :<|> "item" :> CRUD ClientItem
-          :<|> "preferred-hours" :> CRUD Int
+type TimeAPI = "task" :> CRUD (Key Task) ClientTask
+          :<|> "item" :> CRUD (Key Item) ClientItem
+          :<|> "preferred-hours" :> CRUDHours
           :<|> "profile" :> CRUDProfile
-          :<|> "user" :> CRUD UserWithPerm
+          :<|> "user" :> CRUD (Key User) UserWithPerm
           :<|> "tasks" :> Get '[JSON] ([ClientTask], [ClientTask])
           :<|> "items" :> GetItems
           :<|> "users" :> Get '[JSON] (Map UserKey UserWithPerm)
@@ -59,15 +63,15 @@ apiLink = safeLink timeAPI
 
 type AppM = EitherT Servant.ServantErr IO
 
-getTask :: Int64 -> AppM ClientTask
+getTask :: (Key Task) -> AppM ClientTask
 getTask k = do
-  mTask <- runDb $ get $ toSqlKey k
+  mTask <- runDb $ get  k
   hoistEither $ note err404 $ fmap taskName mTask
 newTask taskname = do
   mNewKey <- runDb $ insertUnique $ Task taskname $ toSqlKey 1
   hoistEither $ case mNewKey of
-    (Just key) -> Right $ addHeader link $ fromSqlKey key
-                    where link = apiLink (Servant.Proxy :: Servant.Proxy ("task" :> Capture "id" Int64 :> Get '[JSON] ClientTask)) $ fromSqlKey key
+    (Just key) -> Right $ addHeader link key
+                    where link = apiLink (Servant.Proxy :: Servant.Proxy ("task" :> Capture "id" (Key Task) :> Get '[JSON] ClientTask)) $ key
     Nothing -> Left err409
 updateTask = undefined
 deleteTask = undefined

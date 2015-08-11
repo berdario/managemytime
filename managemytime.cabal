@@ -18,6 +18,7 @@ library
   exposed-modules:     ManageMyTime
                      , ManageMyTime.Models
                      , ManageMyTime.Types
+                     , ManageMyTime.UndecidableTypes
   build-depends:       base >= 4.7 && < 5
                      , servant
                      , servant-docs
