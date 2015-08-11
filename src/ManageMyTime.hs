@@ -1,100 +1,53 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module ManageMyTime
-    ( app, timeAPI, Task(..) ) where
+    ( app, timeAPI, doMigrations ) where
 
-import GHC.Generics (Generic)
 import GHC.TypeLits (Symbol)
-import Control.Monad (mzero)
+import Control.Error.Util (note)
+import Control.Monad.Trans.Either (EitherT, hoistEither)
 import Text.Read (readMaybe)
+import Data.Int (Int64)
+import Data.Map (Map)
 import Data.Text (Text, pack, unpack)
-import Data.Text.Encoding (decodeUtf8')
-import Data.ByteString.Conversion (ToByteString, builder, FromByteString, parser)
-import Data.Aeson (ToJSON, toJSON, FromJSON, parseJSON, Value(String))
+import Data.Aeson (ToJSON, FromJSON)
 import Data.Time.Calendar (Day, showGregorian)
-import Network.URI (parseURIReference)
+import Database.Persist.Sql (Key)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Capture, Headers, Header, ReqBody,
-                QueryParam, Get, Post, Put, Delete)
+                QueryParam, Get, Post, Put, Delete, err404)
 import qualified Servant
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-newtype Task = Task Text deriving (Eq, Show, Generic)
-
-data User = User {email :: Text, username :: Text} deriving (Eq, Show, Generic)
-
-data Registration = Registration
-  { email' :: Text
-  , username' :: Text
-  , password :: Text
-  } deriving (Generic)
-
-data Item = Item
-  { task :: Task
-  , date :: Day
-  , duration :: Int -- assumption: hours, minutes?
-  } deriving (Eq, Show, Generic)
-
-instance ToJSON Day where
-  toJSON d = toJSON (showGregorian d)
-
-instance FromJSON Day where
-  parseJSON (String s) = maybe mzero return $ readMaybe $ unpack s
-  parseJSON _ = mzero
-
-instance Servant.FromText Day where
-  fromText = readMaybe . unpack
-
-instance Servant.ToText Day where
-  toText = pack . showGregorian
-
-instance ToJSON Registration
-instance ToJSON Task
-instance ToJSON User
-instance ToJSON Item
-instance FromJSON Registration
-instance FromJSON Task
-instance FromJSON User
-instance FromJSON Item
-
--- this is correct only for ASCII urls, the proper solution would involve urlencoding and punycode
-instance ToByteString Servant.URI where
-  builder uri = builder $ show uri
-
-instance FromByteString Servant.URI where
-  parser = do
-    ptxt <- fmap decodeUtf8' parser
-    let parseText (Right txt) = maybe invalidURI return $ parseURIReference $ unpack txt
-          where
-            invalidURI = fail $ "Invalid URI: " ++ show txt
-        parseText (Left exc) = fail $ "Invalid UTF-8: " ++ show exc
-    parseText ptxt
+import Models
+import Types
 
 
-type CRUD ty = Capture "id" Int :> Get '[JSON] ty
+type CRUD ty = Capture "id" Int64 :> Get '[JSON] ty
           :<|> ReqBody '[JSON] ty :>
                  Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ty))] ())
-          :<|> Capture "id" Int :> ReqBody '[JSON] ty :> Put '[JSON] ()
-          :<|> Capture "id" Int :> Delete '[JSON] ()
+          :<|> Capture "id" Int64 :> ReqBody '[JSON] ty :> Put '[JSON] ()
+          :<|> Capture "id" Int64 :> Delete '[JSON] ()
 
-type CRUDProfile = Get '[JSON] User
+type CRUDProfile = Get '[JSON] ClientUser
               :<|> ReqBody '[JSON] Registration :>
-                     Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] User))] ())
-              :<|> ReqBody '[JSON] User :> Put '[JSON] ()
+                     Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] ClientUser))] ())
+              :<|> ReqBody '[JSON] ClientUser :> Put '[JSON] ()
               :<|> Delete '[JSON] ()
 
 type GetItems = QueryParam "from" Day :> QueryParam "to" Day :> Get '[JSON] [Item]
 
-type TimeAPI = "task" :> CRUD Task
-          :<|> "item" :> CRUD Item
+type TimeAPI = "task" :> CRUD ClientTask
+          :<|> "item" :> CRUD ClientItem
           :<|> "preferred-hours" :> CRUD Int
           :<|> "profile" :> CRUDProfile
-          :<|> "user" :> CRUD User
-          :<|> "tasks" :> Get '[JSON] [Task]
+          :<|> "user" :> CRUD UserWithPerm
+          :<|> "tasks" :> Get '[JSON] ([ClientTask], [ClientTask])
           :<|> "items" :> GetItems
-          :<|> "users" :> Get '[JSON] [User]
+          :<|> "users" :> Get '[JSON] (Map UserKey UserWithPerm)
 
 
 timeAPI :: Servant.Proxy TimeAPI
@@ -104,8 +57,12 @@ apiLink :: (IsElem endpoint TimeAPI, HasLink endpoint) =>
             Servant.Proxy endpoint -> MkLink endpoint
 apiLink = safeLink timeAPI
 
-getTask :: Int -> Task
-getTask = const $ Task $ pack "foo"
+type AppM = EitherT Servant.ServantErr IO
+
+getTask :: Int64 -> AppM ClientTask
+getTask k = do
+  mTask <- runDb $ get $ toSqlKey k
+  hoistEither $ note err404 $ fmap taskName mTask
 newTask = undefined
 updateTask = undefined
 deleteTask = undefined
@@ -140,7 +97,7 @@ server = taskCrud
     :<|> getItems
     :<|> getUsers
 
-taskCrud = (return . getTask) :<|> newTask :<|> updateTask :<|> deleteTask
+taskCrud = getTask :<|> newTask :<|> updateTask :<|> deleteTask
 itemCrud = getItem :<|> newItem :<|> updateItem :<|> deleteItem
 preferredHoursCrud = getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours
 profileCrud = getProfile :<|> register :<|> updateProfile :<|> deleteProfile

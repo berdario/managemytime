@@ -9,7 +9,7 @@ import System.Environment (getArgs)
 import Network.Wai.Handler.Warp (runSettings, getPort, defaultSettings)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsCiphers, tlsSettingsMemory, tlsAllowedVersions)
 
-import ManageMyTime (app)
+import ManageMyTime (app, doMigrations)
 
 defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key
@@ -27,6 +27,7 @@ testServer = runSettings defaultSettings app
 
 main :: IO ()
 main = do
+  doMigrations
   putStrLn $ "listening on " ++ show (getPort defaultSettings)
   args <- getArgs
   if args == ["test"] then testServer else tlsServer

@@ -8,7 +8,7 @@ import Servant.Client (BaseUrl(..), Scheme(..), client)
 import Test.Tasty (defaultMain, testGroup, TestName)
 import Test.Tasty.HUnit (testCase, (@=?), Assertion, assertFailure)
 
-import ManageMyTime (timeAPI, Task(..))
+import ManageMyTime (timeAPI)
 
 baseUrl = BaseUrl Http "localhost" 3000
 
@@ -29,4 +29,4 @@ main :: IO ()
 main = defaultMain taskTests
 
 taskTests = testGroup "/task tests"
-  [testCase "getTask" $ assert (Task "foo") $ getTask 1]
+  [testCase "getTask" $ assert "foo" $ getTask 1]
