@@ -34,7 +34,7 @@ derivePersistField "AuthLevel"
 data UserWithPerm = UserWithPerm {username :: Text, auth :: AuthLevel} deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 data Registration = Registration
-  { username' :: Text
+  { newUserName :: Text
   , password :: Text
   } deriving (Generic, ToJSON, FromJSON)
 

@@ -2,11 +2,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module ManageMyTime where
 
 import GHC.TypeLits (Symbol)
 import Control.Error.Util (note)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Either (EitherT, hoistEither)
 import Text.Read (readMaybe)
 import Data.Int (Int64)
@@ -15,13 +17,14 @@ import Data.Text (Text, pack, unpack)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Time.Calendar (Day, showGregorian)
 import Network.Wai (Application)
-import Servant (JSON, (:>), (:<|>)(..), Capture, Headers, Header, ReqBody,
+import Servant (JSON, (:>), (:<|>)(..), Proxy(..), Capture, Headers, Header, ReqBody,
                 QueryParam, Get, Post, Put, Delete, err404, err409)
 import qualified Servant
 import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb, Key, Item(..), Task(..), User(..))
+import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb,
+                            Key, Item(..), Task(..), User(..), createUser)
 import ManageMyTime.Types
 
 type CRUD kty ty = Capture "id" kty :> Get '[JSON] ty
@@ -54,12 +57,16 @@ type TimeAPI = "task" :> CRUD (Key Task) ClientTask
           :<|> "users" :> Get '[JSON] (Map UserKey UserWithPerm)
 
 
-timeAPI :: Servant.Proxy TimeAPI
-timeAPI = Servant.Proxy
+timeAPI :: Proxy TimeAPI
+timeAPI = Proxy
 
 apiLink :: (IsElem endpoint TimeAPI, HasLink endpoint) =>
-            Servant.Proxy endpoint -> MkLink endpoint
+            Proxy endpoint -> MkLink endpoint
 apiLink = safeLink timeAPI
+taskLink = apiLink (Proxy :: Proxy ("task" :> Capture "id" (Key Task) :> Get '[JSON] ClientTask))
+itemLink = apiLink (Proxy :: Proxy ("item" :> Capture "id" (Key Item) :> Get '[JSON] ClientItem))
+profileLink = apiLink (Proxy :: Proxy ("profile" :> Get '[JSON] ClientUser))
+userLink = apiLink (Proxy :: Proxy ("user" :> Capture "id" (Key User) :> Get '[JSON] UserWithPerm))
 
 type AppM = EitherT Servant.ServantErr IO
 
@@ -70,8 +77,7 @@ getTask k = do
 newTask taskname = do
   mNewKey <- runDb $ insertUnique $ Task taskname $ toSqlKey 1
   hoistEither $ case mNewKey of
-    (Just key) -> Right $ addHeader link key
-                    where link = apiLink (Servant.Proxy :: Servant.Proxy ("task" :> Capture "id" (Key Task) :> Get '[JSON] ClientTask)) $ key
+    (Just key) -> Right $ addHeader (taskLink key) key
     Nothing -> Left err409
 updateTask = undefined
 deleteTask = undefined
@@ -84,7 +90,12 @@ newPreferredHours = undefined
 updatePreferredHours = undefined
 deletePreferredHours = undefined
 getProfile = undefined
-register = undefined
+register Registration{..} = do
+  user <- liftIO $ createUser newUserName password
+  mNewKey <- runDb $ insertUnique user
+  hoistEither $ case mNewKey of
+    (Just key) -> Right $ addHeader profileLink ()
+    Nothing -> Left err409
 updateProfile = undefined
 deleteProfile = undefined
 getUser = undefined

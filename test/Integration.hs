@@ -17,7 +17,7 @@ import Test.Tasty.HUnit (testCase, testCaseSteps, (@=?), Assertion, assertFailur
 
 import ManageMyTime (timeAPI)
 import ManageMyTime.Models (User(..), Task(..), get, insert, fromSqlKey, toSqlKey, runDb, doMigrations, connectionString)
-import ManageMyTime.Types (AuthLevel(..))
+import ManageMyTime.Types (AuthLevel(..), Registration(..))
 
 baseUrl = BaseUrl Http "localhost" 3000
 
@@ -65,15 +65,19 @@ main = do
 setupFixture :: IO ()
 setupFixture = runDb $ do
   liftIO $ putStrLn "attempt to create fixture data"
-  johnid <-insert $ User "john" Normal "" Nothing
-  fooid <- insert $ Task "foo" johnid
+  johnid <- insert $ User "john" Normal "" Nothing
+  insert $ Task "foo" johnid
   liftIO $ putStrLn "fixture data OK"
 
 
-taskTests = testGroup "/task tests"
-  [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
-  ,testCase "newTask" $ do
-     response <- run $ newTask "fooz"
-     assert "fooz" $ getTask $ getResponse response
-  ,testCase "duplicateTask" $ do
-     expect (checkHttpErr 409) $ newTask "foo"]
+taskTests = testGroup "all tests"
+  [testGroup "/task tests"
+    [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
+    ,testCase "newTask" $ do
+       response <- run $ newTask "fooz"
+       assert "fooz" $ getTask $ getResponse response
+    ,testCase "duplicateTask" $ do
+       expect (checkHttpErr 409) $ newTask "foo"]
+  ,testGroup "/profile and registration test"
+    [testCase "registration" $ fmap getResponse $ run $ register $ Registration{newUserName="max",password="xam"}
+    ]]

@@ -17,10 +17,11 @@ import Data.Maybe
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Arrow ((&&&))
-import Crypto.Scrypt (EncryptedPass, getEncryptedPass)
+import Crypto.Scrypt (EncryptedPass, Pass(..), getEncryptedPass, encryptPassIO')
 import Data.Aeson (ToJSON)
 import Data.Map.Strict (Map, fromList)
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.ByteString (ByteString)
 import Data.Time.Calendar (Day)
 import Database.Persist (toJsonText)
@@ -51,6 +52,10 @@ Item json
     DayTask userId day taskId
     deriving Show
 |]
+
+createUser name password = fmap (\hash -> User name Normal hash Nothing) hashIO
+  where
+   hashIO = fmap getEncryptedPass $ encryptPassIO' $ Pass $ encodeUtf8 password
 
 toMap :: (ToJSON (Key a)) => [Entity a] -> Map Text a
 toMap = fromList . map ((toJsonText.entityKey) &&& entityVal)
