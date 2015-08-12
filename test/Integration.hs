@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Data.Either.Combinators (fromRight')
+import Control.Concurrent.Thread.Delay (delay)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Either (runEitherT, EitherT)
@@ -90,6 +91,9 @@ taskTests = testGroup "all tests"
        let maxGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
        assert "foo" $ maxGetTask $ toSqlKey 1
        expect' (checkHttpErr 403) $ franzGetTask $ toSqlKey 1
+       delay 1000000
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+       expect' (checkHttpErr 403) $ maxGetTask $ toSqlKey 1 -- new login invalidates old token
        ]
   ,testGroup "/task tests"
     [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
