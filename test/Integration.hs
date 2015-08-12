@@ -21,13 +21,15 @@ import ManageMyTime.Types (AuthLevel(..), Registration(..))
 
 baseUrl = BaseUrl Http "localhost" 3000
 
-getTask :<|> newTask :<|> updateTask :<|> deleteTask = taskCrud
-getItem :<|> newItem :<|> updateItem :<|> deleteItem = itemCrud
-getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours = preferredHoursCrud
-getProfile :<|> register :<|> updateProfile :<|> deleteProfile = profileCrud
-getUser :<|> newUser :<|> updateUser :<|> deleteUser = userCrud
+getTask :<|> newTask :<|> updateTask :<|> deleteTask = taskCrud $ Just ""
+getItem :<|> newItem :<|> updateItem :<|> deleteItem = itemCrud $ Just ""
+getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours = preferredHoursCrud $ Just ""
+getProfile :<|> updateProfile :<|> deleteProfile = profileCrud $ Just ""
+getUser :<|> newUser :<|> updateUser :<|> deleteUser = userCrud $ Just ""
+--
+taskCrud :<|> itemCrud :<|> preferredHoursCrud :<|> profileCrud :<|> userCrud :<|> getTasks :<|> getItems :<|> getUsers = authApi
 
-taskCrud :<|> itemCrud :<|> preferredHoursCrud :<|> profileCrud :<|> userCrud :<|> getTasks :<|> getItems :<|> getUsers = client timeAPI baseUrl
+authApi :<|> register :<|> login = client timeAPI baseUrl
 
 run op = do
   result <- runEitherT op
@@ -48,6 +50,12 @@ expect errChecker op = do
   where
     unexpected resp = assertFailure $ "unexpected success " ++ (show $ getResponse resp)
 
+expect' errChecker op = do
+  result <- runEitherT op
+  either errChecker unexpected result
+  where
+    unexpected resp = assertFailure $ "unexpected success " ++ show resp
+
 assert :: (Eq a, Show a) => a -> EitherT ServantError IO a -> Assertion
 assert a b = runWith a b >> return ()
 
@@ -65,13 +73,25 @@ main = do
 setupFixture :: IO ()
 setupFixture = runDb $ do
   liftIO $ putStrLn "attempt to create fixture data"
+  maxid <- insert $ User "max" Normal "14|8|1|yJix8ZSoF5XRHrMmRM9XbvXX3SfHH5GfT3uF0UCFhkE=|S3uVGARlFhX+q4agOoPdp4QfLViPtjJWnwg67e91/jSK107wHXwtmcfICaBHkhQLemwmOzbsHcnqSxp7dD+kuw==" Nothing
   johnid <- insert $ User "john" Normal "" Nothing
+  insert $ Task "foo" maxid
   insert $ Task "foo" johnid
   liftIO $ putStrLn "fixture data OK"
 
 
 taskTests = testGroup "all tests"
-  [testGroup "/task tests"
+  [testGroup "/profile and registration test"
+    [testCase "registration" $ do
+       fmap getResponse $ run $ register $ Registration{newUserName="franz", password="kafka"}
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="franz", password="kafka"}
+       let franzGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+       let maxGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
+       assert "foo" $ maxGetTask $ toSqlKey 1
+       expect' (checkHttpErr 403) $ franzGetTask $ toSqlKey 1
+       ]
+  ,testGroup "/task tests"
     [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
     ,testCase "newTask" $ do
        response <- run $ newTask "fooz"

@@ -11,7 +11,8 @@
 
 
 module ManageMyTime.Models
-    (module ManageMyTime.Models, Key, toSqlKey, fromSqlKey, get, insert, insertUnique) where
+    (module ManageMyTime.Models, Key, toSqlKey, fromSqlKey, get, insert,
+     insertUnique, Unique(..)) where
 
 import Data.Maybe
 
@@ -25,6 +26,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.ByteString (ByteString)
 import Data.Time.Calendar (Day)
 import Database.Persist (toJsonText)
+import Database.Persist.Class (Unique)
 import Database.Persist.Sql (Key, PersistFieldSql, insert, insertUnique, get, getBy, entityKey, entityVal, toSqlKey, fromSqlKey, selectList, Entity, )
 import Database.Persist.Sqlite (SqlBackend(..), runSqlite, runMigration)
 import Database.Persist.TH (share, mkPersist, sqlSettings, mkMigrate, persistLowerCase)
