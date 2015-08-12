@@ -9,7 +9,9 @@
 module ManageMyTime where
 
 import GHC.TypeLits (Symbol)
+import Control.Arrow ((&&&))
 import Control.Error.Util (note, noteT)
+import Control.Monad ((<=<))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Either (EitherT(..), hoistEither, left, right, bimapEitherT)
 import Text.Read (readMaybe)
@@ -20,7 +22,9 @@ import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Encoding (encodeUtf8)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Time.Calendar (Day, showGregorian)
-import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBackend, SqlBackend(..))
+import Data.Tuple.Extra (both)
+import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBackend, SqlBackend(..),
+                             delete, replace, entityVal, selectList)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Proxy(..), ServantErr(..), Capture, Headers, Header,
                 ReqBody, QueryParam, Get, Post, Put, Delete, err403, err404, err409)
@@ -29,7 +33,9 @@ import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
 import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb,
-                            Key, Item(..), Task(..), User(..), createUser)
+                            Key, Item(..), Task(..), User(..), createUser, updateTaskName,
+                            toClientItem, userPreferredHours, setPreferredHours, userName,
+                            Unique(..), pickSelect, toMap)
 import qualified ManageMyTime.Auth as Auth
 import ManageMyTime.Types
 
@@ -48,9 +54,8 @@ type Auth = Header "Authorization" Text
 type AuthRoute (nextRes :: Symbol) nextTy resTy = ReqBody '[JSON] Registration :>
        Post '[JSON] (Headers '[Header "Location" (MkLink (nextRes :> Get '[JSON] nextTy))] resTy)
 
-type CRUDHours = Get '[JSON] Int
-            :<|> ReqBody '[JSON] Int :>
-                   Post '[JSON] (Headers '[Header "Location" (MkLink (Get '[JSON] Int))] ())
+type CRUDHours = Get '[JSON] (Maybe Int)
+            :<|> ReqBody '[JSON] Int :> Post '[JSON] ()
             :<|> ReqBody '[JSON] Int :> Put '[JSON] ()
             :<|> Delete '[JSON] ()
 
@@ -87,6 +92,7 @@ type AppM = EitherT Servant.ServantErr IO
 decorateAuthError tknErr = err403{errBody=encodeUtf8 $ TL.pack $ show $ tknErr}
 
 liftValidate tkn = bimapEitherT decorateAuthError id  $ EitherT $ Auth.validate tkn
+validateLevel minLevel = (\u -> if (>= minLevel)(userAuth $ entityVal u) then (return u) else (left err403)) <=< liftValidate
 
 withUserFrom :: (PersistEntity val, PersistEntityBackend val ~ SqlBackend) => (Entity User -> (Key val) -> val -> AppM b) -> Text -> (Key val) -> AppM b
 withUserFrom f tkn key = do
@@ -103,39 +109,146 @@ withTaskPerms f = withUserFrom f'
 
 getTask :: Text -> (Key Task) -> AppM ClientTask
 getTask = withTaskPerms (\_ _ t -> right $ taskName t)
+
 newTask tkn taskname = do
   usr <- liftValidate tkn
-  mNewKey <- runDb $ insertUnique $ Task taskname $ toSqlKey 1
+  mNewKey <- runDb $ insertUnique $ Task taskname $ entityKey usr
   hoistEither $ case mNewKey of
     (Just key) -> Right $ addHeader (taskLink key) key
     Nothing -> Left err409
-updateTask = undefined
-deleteTask = undefined
-getItem = undefined
-newItem = undefined
-updateItem = undefined
-deleteItem = undefined
-getPreferredHours = undefined
-newPreferredHours = undefined
-updatePreferredHours = undefined
-deletePreferredHours = undefined
-getProfile = undefined
-updateProfile = undefined
-deleteProfile = undefined
-getUser = undefined
-newUser = undefined
-updateUser = undefined
-deleteUser = undefined
-getTasks = undefined
-getItems = undefined
-getUsers = undefined
-logout = undefined
+
+updateTask :: Text -> (Key Task) -> ClientTask -> AppM ()
+updateTask tkn key newtext = do
+  usr <- liftValidate tkn
+  mTask <- runDb $ get key
+  case mTask of
+    Nothing -> left err404
+    (Just task) -> if (entityKey usr == taskAuthorId task) then
+                      runDb $ updateTaskName key newtext
+                   else left err403
+
+deleteTask = withTaskPerms (\_ key _ -> runDb $ delete key)
+
+withItemPerms :: (Entity User -> (Key Item) -> Item -> AppM b) -> Text -> (Key Item) -> AppM b
+withItemPerms f = withUserFrom f'
+  where f' = (\usr key item -> if (entityKey usr == itemUserId item) then (f usr key item) else left err403)
+
+
+getItem :: Text -> (Key Item) -> AppM ClientItem
+getItem = withItemPerms (\_ _ t -> toClientItem t)
+
+newItem tkn ClientItem{..} = do
+  usr <- liftValidate tkn
+  mNewKey <- runDb $ insertUnique $ Item{itemTaskId=toSqlKey taskid, itemUserId=entityKey usr,
+                                         itemDay=date, itemDuration=duration}
+  case mNewKey of
+    (Just key) -> right $ addHeader (itemLink key) key
+    Nothing -> left err409
+
+updateItem :: Text -> (Key Item) -> ClientItem -> AppM ()
+updateItem tkn key ClientItem{..} = do
+  usr <- liftValidate tkn
+  mItem <- runDb $ get key
+  case mItem of
+    Nothing -> left err404
+    (Just item) -> if (entityKey usr == itemUserId item) then
+                       runDb $ replace key $ Item{itemTaskId=toSqlKey taskid, itemUserId=entityKey usr,
+                                                        itemDay=date, itemDuration=duration}
+                   else left err403
+
+deleteItem = withItemPerms (\_ key _ -> runDb $ delete key)
+
+getPreferredHours :: Text -> AppM (Maybe Int)
+getPreferredHours tkn = do
+  usr <- liftValidate tkn
+  return $ userPreferredHours $ entityVal usr
+
+updatePreferredHours tkn val = do
+  usr <- liftValidate tkn
+  runDb $ setPreferredHours (entityKey usr) (Just val)
+
+deletePreferredHours tkn =  do
+  usr <- liftValidate tkn
+  runDb $ setPreferredHours (entityKey usr) Nothing
+
+getProfile :: Text -> AppM Text
+getProfile tkn = do
+  usr <- liftValidate tkn
+  return $ userName $ entityVal usr
+
+updateProfile :: Text -> Text -> AppM ()
+updateProfile tkn newname = do
+  usr <- liftValidate tkn
+  -- it'd be nice to use replaceUnique here, but `No instance for (Eq (Unique User))`
+  runDb $ replace (entityKey usr) $ (entityVal usr){userName=newname}
+
+
+deleteProfile :: Text -> AppM ()
+deleteProfile tkn = do
+  usr <- liftValidate tkn
+  runDb $ delete $ entityKey usr
+
+validateAdmin = validateLevel Admin
+
+toUserWithPerm User{..} = UserWithPerm{username=userName, auth=userAuth}
+
+getUser :: Text -> (Key User) -> AppM UserWithPerm
+getUser tkn key = do
+  validateAdmin tkn
+  target <- runDb $ get key
+  maybe (left err404) (return . toUserWithPerm) target
+
+newUser tkn UserWithPerm{..} = do
+  validateAdmin tkn
+  newuser <- liftIO $ createUser username $ pack ""
+  mNewKey <- runDb $ insertUnique newuser{userAuth=auth}
+  hoistEither $ case mNewKey of
+    (Just key) -> Right $ addHeader (userLink key) key
+    Nothing -> Left err409
+
+updateUser :: Text -> (Key User) -> UserWithPerm -> AppM ()
+updateUser tkn key UserWithPerm{..} = do
+  validateAdmin tkn
+  mTarget <- runDb $ get key
+  case mTarget of
+    Nothing -> left err404
+    (Just target) -> runDb $ replace key $ target{userName=username, userAuth=auth}
+
+deleteUser :: Text -> (Key User) -> AppM ()
+deleteUser tkn key = do
+  validateAdmin tkn
+  runDb $ delete key
+
+getTasks :: Text -> AppM ([ClientTask], [ClientTask])
+getTasks tkn = do
+  usr <- fmap entityKey $ liftValidate tkn
+  allTasks <- runDb $ selectList [] []
+  return $ both (map taskName) $ span ((usr==) . taskAuthorId) $ map entityVal allTasks
+
+getItems :: Text -> Maybe Day -> Maybe Day -> AppM [Item]
+getItems tkn from to = do
+  (key, auth) <- fmap (entityKey &&& (userAuth.entityVal)) $ liftValidate tkn
+  items <- runDb $ pickSelect key (auth >= Manager) from to
+  return $ map entityVal items
+
+getUsers :: Text -> AppM (Map UserKey UserWithPerm)
+getUsers tkn = do
+  validateLevel Manager tkn
+  users <- runDb $ selectList [] []
+  return $ fmap toUserWithPerm $ toMap users
+
+logout :: Text -> AppM ()
+logout tkn = do
+  usr <- liftValidate tkn
+  liftIO $ Auth.logout $ userName $ entityVal usr
+
 register Registration{..} = do
   user <- liftIO $ createUser newUserName password
   mNewKey <- runDb $ insertUnique user
   hoistEither $ case mNewKey of
     (Just key) -> Right $ addHeader profileLink ()
     Nothing -> Left err409
+
 login Registration{..} = do
   tkn <- bimapEitherT decorateAuthError id  $ EitherT $ Auth.login newUserName password
   right $ addHeader itemsLink tkn
@@ -151,22 +264,30 @@ crudAccessDenied e = const (left e)
                 :<|> const (const (left e))
                 :<|> const (left e)
 
-authApi =  maybe (crudAccessDenied err403) taskCrud
-     :<|> (\x -> itemCrud )
-     :<|> (\x -> preferredHoursCrud )
-     :<|> (\x -> profileCrud )
-     :<|> (\x -> userCrud )
-     :<|> (\x -> getTasks )
-     :<|> (\x -> getItems )
-     :<|> (\x -> getUsers )
-     :<|> (\x -> left err404 --logout
-     )
+crudHoursAccessDenied e = left e
+                     :<|> const (left e)
+                     :<|> const (left e)
+                     :<|> left e
 
-taskCrud tkn =  getTask tkn :<|>  newTask tkn :<|> updateTask :<|> deleteTask
-itemCrud = getItem :<|> newItem :<|> updateItem :<|> deleteItem
-preferredHoursCrud = getPreferredHours :<|> newPreferredHours :<|> updatePreferredHours :<|> deletePreferredHours
-profileCrud = getProfile :<|> updateProfile :<|> deleteProfile
-userCrud = getUser :<|> newUser :<|> updateUser :<|> deleteUser
+crudProfileAccessDenied e = left e
+                       :<|> const (left e)
+                       :<|> left e
+
+authApi =  maybe (crudAccessDenied err403) taskCrud
+     :<|>  maybe (crudAccessDenied err403) itemCrud
+     :<|>  maybe (crudHoursAccessDenied err403) preferredHoursCrud
+     :<|>  maybe (crudProfileAccessDenied err403) profileCrud
+     :<|>  maybe (crudAccessDenied err403) userCrud
+     :<|>  maybe (left err403) getTasks
+     :<|>  maybe (const $ const $ left err403) getItems
+     :<|>  maybe (left err403) getUsers
+     :<|>  maybe (left err403) logout
+
+taskCrud tkn =  getTask tkn :<|>  newTask tkn :<|> updateTask tkn :<|> deleteTask tkn
+itemCrud tkn = getItem tkn :<|> newItem tkn :<|> updateItem tkn :<|> deleteItem tkn
+preferredHoursCrud tkn = getPreferredHours tkn :<|> updatePreferredHours tkn :<|> updatePreferredHours tkn :<|> deletePreferredHours tkn
+profileCrud tkn = getProfile tkn :<|> updateProfile tkn :<|> deleteProfile tkn
+userCrud tkn = getUser tkn :<|> newUser tkn :<|> updateUser tkn :<|> deleteUser tkn
 
 app :: Application
 app = Servant.serve timeAPI server

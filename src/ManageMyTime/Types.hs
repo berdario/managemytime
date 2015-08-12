@@ -6,6 +6,7 @@ module ManageMyTime.Types (module ManageMyTime.Types, module ManageMyTime.Undeci
 import GHC.Generics (Generic)
 import Control.Monad (mzero)
 import Data.Aeson (ToJSON, toJSON, FromJSON, parseJSON, Value(String))
+import Data.Int (Int64)
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (decodeUtf8')
 import Network.URI (parseURIReference)
@@ -28,7 +29,7 @@ type UserKey = Text
 type ClientTask = Text
 type ClientUser = Text
 
-data AuthLevel = Normal | Manager | Admin deriving (Show, Read, Eq, Generic, ToJSON, FromJSON)
+data AuthLevel = Normal | Manager | Admin deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 derivePersistField "AuthLevel"
 
 data UserWithPerm = UserWithPerm {username :: Text, auth :: AuthLevel} deriving (Eq, Show, Generic, ToJSON, FromJSON)
@@ -40,6 +41,7 @@ data Registration = Registration
 
 data ClientItem = ClientItem
   { task :: ClientTask
+  , taskid :: Int64
   , date :: Day
   , duration :: Int -- assumption: hours, minutes?
   } deriving (Eq, Show, Generic, ToJSON, FromJSON)

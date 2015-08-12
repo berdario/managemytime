@@ -17,7 +17,7 @@ import Database.Persist.Sql (getBy, entityVal, Entity)
 import Web.JWT (JWT, JSON, UnverifiedJWT, VerifiedJWT, JWTClaimsSet(..), Algorithm(..),
                 secret, decodeAndVerifySignature, encodeSigned, IntDate, intDate,
                 secondsSinceEpoch, stringOrURI, stringOrURIToText, claims)
-import STMContainers.Map (Map, newIO, lookup, insert)
+import STMContainers.Map (Map, newIO, lookup, insert, delete)
 import ManageMyTime.Models (runDb, Unique(..), userPasswordHash, User(..))
 import ManageMyTime.Types
 
@@ -88,3 +88,8 @@ sessionCheck name tkn = do
   storedTkn <- atomically $ lookup name sessions
   let tknCheck = fmap (tkn ==) storedTkn
   if (tknCheck == (Just False)) then (return $ Left LoggedOut) else (queryUser name)
+
+logout name = do
+  -- the token is rejected only when a newer one is stored, thus deleting it
+  -- wouldn't force a logout
+  atomically $ insert "" name sessions
