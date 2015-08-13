@@ -16,7 +16,7 @@ defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key
   False -> tlsSettingsMemory defaultCert defaultKey
 
-latestTLS = last $ tlsAllowedVersions defaultTls
+latestTLS = head $ tlsAllowedVersions defaultTls
 ciphers = take 2 $ tlsCiphers defaultTls -- take the first 2, currently the GCM ciphers
 tlsSettings = defaultTls{tlsAllowedVersions=[latestTLS], tlsCiphers=ciphers}
 
