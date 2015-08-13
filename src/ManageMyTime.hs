@@ -27,7 +27,7 @@ import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBack
                              delete, replace, entityVal, selectList)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Proxy(..), ServantErr(..), Capture, Headers, Header,
-                ReqBody, QueryParam, Get, Post, Put, Delete, err403, err404, err409)
+                ReqBody, QueryParam, Get, Post, Put, Delete, err403, err404, err409, Raw)
 import qualified Servant
 import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
@@ -289,5 +289,10 @@ preferredHoursCrud tkn = getPreferredHours tkn :<|> updatePreferredHours tkn :<|
 profileCrud tkn = getProfile tkn :<|> updateProfile tkn :<|> deleteProfile tkn
 userCrud tkn = getUser tkn :<|> newUser tkn :<|> updateUser tkn :<|> deleteUser tkn
 
+api :: Proxy (TimeAPI :<|> Raw)
+api = Proxy
+
+mainServer = server :<|> Servant.serveDirectory "frontend"
+
 app :: Application
-app = Servant.serve timeAPI server
+app = Servant.serve api mainServer

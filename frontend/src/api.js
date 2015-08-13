@@ -1,5 +1,6 @@
 'use strict'
 /* @flow */
+declare var $: any;
 
 var getTaskById = function(id, headerAuthorization, onSuccess, onError)
 {

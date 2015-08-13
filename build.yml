@@ -8,4 +8,4 @@
     - name: insert certificate and private key in the sources
       template: src=app/Main.hs dest=app/Main.hs backup=yes
 
-    - command: stack build
+    - command: stack build managemytime
