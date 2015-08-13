@@ -1,6 +1,11 @@
 flags: {}
 packages:
 - '.'
+- '../servant/servant'
+- '../servant/servant-js'
+- '../servant/servant-server'
+- '../servant/servant-client'
+- '../servant/servant-docs'
 extra-deps:
   - scrypt-0.5.0
 resolver: lts-3.0

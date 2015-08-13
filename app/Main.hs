@@ -9,7 +9,9 @@ import System.Environment (getArgs)
 import Network.Wai.Handler.Warp (runSettings, getPort, defaultSettings)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsCiphers, tlsSettingsMemory, tlsAllowedVersions)
 
-import ManageMyTime (app)
+import Servant.JS (writeJSForAPI, jquery)
+
+import ManageMyTime (app, timeAPI)
 import ManageMyTime.Models (doMigrations)
 
 defaultTls = case length cert > 15 of
@@ -28,6 +30,8 @@ testServer = runSettings defaultSettings app
 
 main :: IO ()
 main = do
+  putStrLn "Writing javascript api to api.js, check its validity before shipping it"
+  writeJSForAPI timeAPI jquery "api.js"
   doMigrations
   putStrLn $ "listening on " ++ show (getPort defaultSettings)
   args <- getArgs
