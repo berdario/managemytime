@@ -58,3 +58,7 @@ td.short_for_target {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
 }
+
+#main {
+  margin-top: 40px;
+}

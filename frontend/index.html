@@ -23,6 +23,45 @@
 
     <div class="container">
       <div id="main">
+        <div id="mainForms" style="display: none">
+          <form id="hoursForm">
+            <label for="hours">Preferred working hours per day</label>
+            <input id="hours" type="number" min="1">
+            <button type="button" id="clearHours">Clear</button>
+            <button type="submit">Set</button>
+          </form>
+          <form id="newTaskForm">
+            <label for="newTask">New task</label>
+            <input id="newTask" type="text">
+            <button type="submit">Create</button>
+          </form>
+          <form id="newItemForm">
+            <button id="initNewItemForm" >Create New Task</button>
+          </form>
+
+
+          <form id="dateFilterForm">
+            <label for="from">Show activities from</label>
+            <input id="from" type="date">
+            <label for="to">to</label>
+            <input id="to" type="date">
+            <button type="submit" id="dateFilterSubmit">Filter</button>
+          </form>
+        </div>
+        <div id="mainAdmin" style="display: none">
+          <form id="createUser">
+            <label for="newUsername">Create new user</label>
+            <input id="newUsername" type="text">
+            <label for="authLevel">Level</label>
+            <select id="authLevel">
+              <option>Normal</option>
+              <option>Manager</option>
+              <option>Admin</option>
+            </select>
+            <button type="submit">Create</button>
+            (the new user password will be "changeme")
+          </form>
+        </div>
       <div class="" id="loginModal">
         <div class="modal-body">
           <div class="well">
@@ -42,7 +81,7 @@
                   </form>
               </div>
               <div class="tab-pane fade" id="create">
-                <form class="form-signin">
+                <form class="form-signin" id="registerForm">
                   <label for="inputUsername" class="sr-only">Username</label>
                   <input type="text" id="inputUsername" class="form-control" placeholder="Username" required autofocus>
                   <label for="inputPassword" class="sr-only">Password</label>

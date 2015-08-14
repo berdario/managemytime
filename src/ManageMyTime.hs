@@ -16,6 +16,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Either (EitherT(..), hoistEither, left, right, bimapEitherT)
 import Text.Read (readMaybe)
 import Data.Int (Int64)
+import Data.List (partition)
 import Data.Map (Map)
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text.Lazy as TL
@@ -59,7 +60,7 @@ type CRUDHours = Get '[JSON] (Maybe Int)
             :<|> ReqBody '[JSON] Int :> Put '[JSON] ()
             :<|> Delete '[JSON] ()
 
-type GetItems = QueryParam "from" Day :> QueryParam "to" Day :> Get '[JSON] [Item]
+type GetItems = QueryParam "from" Day :> QueryParam "to" Day :> Get '[JSON] [Entity Item]
 
 type AuthenticatedAPI = Auth :> "task" :> CRUD (Key Task) ClientTask
                    :<|> Auth :> "item" :> CRUD (Key Item) ClientItem
@@ -83,7 +84,7 @@ apiLink :: (IsElem endpoint TimeAPI, HasLink endpoint) =>
 apiLink = safeLink timeAPI
 taskLink = apiLink (Proxy :: Proxy (Auth :> "task" :> Capture "id" (Key Task) :> Get '[JSON] ClientTask))
 itemLink = apiLink (Proxy :: Proxy (Auth :> "item" :> Capture "id" (Key Item) :> Get '[JSON] ClientItem))
-itemsLink = apiLink (Proxy :: Proxy (Auth :> "items" :> Get '[JSON] [Item]))
+itemsLink = apiLink (Proxy :: Proxy (Auth :> "items" :> Get '[JSON] [Entity Item]))
 profileLink = apiLink (Proxy :: Proxy (Auth :> "profile" :> Get '[JSON] ClientUser))
 userLink = apiLink (Proxy :: Proxy (Auth :> "user" :> Capture "id" (Key User) :> Get '[JSON] UserWithPerm))
 
@@ -200,7 +201,7 @@ getUser tkn key = do
 
 newUser tkn UserWithPerm{..} = do
   validateAdmin tkn
-  newuser <- liftIO $ createUser username (pack "") auth prefHours
+  newuser <- liftIO $ createUser username (pack "changeme") auth prefHours
   mNewKey <- runDb $ insertUnique newuser
   hoistEither $ case mNewKey of
     (Just key) -> Right $ addHeader (userLink key) key
@@ -223,13 +224,12 @@ getTasks :: Text -> AppM (Map TaskKey ClientTask, Map TaskKey ClientTask)
 getTasks tkn = do
   usr <- fmap entityKey $ liftValidate tkn
   allTasks <- runDb $ selectList [] []
-  return $ both ((fmap taskName). toMap) $ span ((usr==) . taskAuthorId . entityVal) allTasks
+  return $ both ((fmap taskName). toMap) $ partition ((usr==) . taskAuthorId . entityVal) allTasks
 
-getItems :: Text -> Maybe Day -> Maybe Day -> AppM [Item]
+getItems :: Text -> Maybe Day -> Maybe Day -> AppM [Entity Item]
 getItems tkn from to = do
   (key, auth) <- fmap (entityKey &&& (userAuth.entityVal)) $ liftValidate tkn
-  items <- runDb $ pickSelect key (auth >= Manager) from to
-  return $ map entityVal items
+  runDb $ pickSelect key (auth >= Manager) from to
 
 getUsers :: Text -> AppM (Map UserKey UserWithPerm)
 getUsers tkn = do

@@ -19,7 +19,7 @@ import Test.Tasty.HUnit (testCase, testCaseSteps, (@=?), Assertion, assertFailur
 
 import ManageMyTime (timeAPI)
 import ManageMyTime.Models (User(..), Task(..), Item(..), get, insert, fromSqlKey, toSqlKey, runDb, doMigrations, connectionString, createUser)
-import ManageMyTime.Types (AuthLevel(..), Registration(..))
+import ManageMyTime.Types
 
 baseUrl = BaseUrl Http "localhost" 3000
 
@@ -76,7 +76,7 @@ setupFixture :: IO ()
 setupFixture = runDb $ do
   liftIO $ putStrLn "attempt to create fixture data"
   maxid <- insert =<< (liftIO $ createUser "max" "xam" Normal (Just 1))
-  johnid <- insert =<< (liftIO $ createUser "john" "" Normal (Just 3))
+  johnid <- insert =<< (liftIO $ createUser "john" "a" Normal (Just 3))
   adminid <- insert =<< (liftIO $ createUser "admin" "admin" Admin Nothing)
   managerid <- insert =<< (liftIO $ createUser "manager" "manager" Manager Nothing)
   maxTaskid <- insert $ Task "foo" maxid
