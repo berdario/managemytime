@@ -2,297 +2,247 @@
 /* @flow */
 declare var $: any;
 
-var getTaskById = function(id, headerAuthorization, onSuccess, onError)
+var getTaskById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/task/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var postTask = function(body, headerAuthorization, onSuccess, onError)
+var postTask = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/task'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'POST'
     });
 }
 
-var putTaskById = function(id, body, headerAuthorization, onSuccess, onError)
+var putTaskById = function(id, body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/task/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'PUT'
     });
 }
 
-var deleteTaskById = function(id, headerAuthorization, onSuccess, onError)
+var deleteTaskById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/task/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'DELETE'
     });
 }
 
-var getItemById = function(id, headerAuthorization, onSuccess, onError)
+var getItemById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/item/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var postItem = function(body, headerAuthorization, onSuccess, onError)
+var postItem = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/item'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'POST'
     });
 }
 
-var putItemById = function(id, body, headerAuthorization, onSuccess, onError)
+var putItemById = function(id, body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/item/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'PUT'
     });
 }
 
-var deleteItemById = function(id, headerAuthorization, onSuccess, onError)
+var deleteItemById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/item/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'DELETE'
     });
 }
 
-var getPreferredHours = function(headerAuthorization, onSuccess, onError)
+var getPreferredHours = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/preferred-hours'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var postPreferredHours = function(body, headerAuthorization, onSuccess, onError)
+var postPreferredHours = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/preferred-hours'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'POST'
     });
 }
 
-var putPreferredHours = function(body, headerAuthorization, onSuccess, onError)
+var putPreferredHours = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/preferred-hours'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'PUT'
     });
 }
 
-var deletePreferredHours = function(headerAuthorization, onSuccess, onError)
+var deletePreferredHours = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/preferred-hours'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'DELETE'
     });
 }
 
-var getProfile = function(headerAuthorization, onSuccess, onError)
+var getProfile = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/profile'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var putProfile = function(body, headerAuthorization, onSuccess, onError)
+var putProfile = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/profile'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'PUT'
     });
 }
 
-var deleteProfile = function(headerAuthorization, onSuccess, onError)
+var deleteProfile = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/profile'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'DELETE'
     });
 }
 
-var getUserById = function(id, headerAuthorization, onSuccess, onError)
+var getUserById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/user/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var postUser = function(body, headerAuthorization, onSuccess, onError)
+var postUser = function(body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/user'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'POST'
     });
 }
 
-var putUserById = function(id, body, headerAuthorization, onSuccess, onError)
+var putUserById = function(id, body, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/user/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'PUT'
     });
 }
 
-var deleteUserById = function(id, headerAuthorization, onSuccess, onError)
+var deleteUserById = function(id, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/user/' + encodeURIComponent(id) + ''
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'DELETE'
     });
 }
 
-var getTasks = function(headerAuthorization, onSuccess, onError)
+var getTasks = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/tasks'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var getItems = function(from, to, headerAuthorization, onSuccess, onError)
+var getItems = function(from, to, headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/items' + '?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var getUsers = function(headerAuthorization, onSuccess, onError)
+var getUsers = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/users'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'GET'
     });
 }
 
-var postLogout = function(headerAuthorization, onSuccess, onError)
+var postLogout = function(headerAuthorization)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/logout'
-    , success: onSuccess
     , headers: { "Authorization": headerAuthorization }
-    , error: onError
     , type: 'POST'
     });
 }
 
-var postRegistration = function(body, onSuccess, onError)
+var postRegistration = function(body)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/registration'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
-    , error: onError
     , type: 'POST'
     });
 }
 
-var postLogin = function(body, onSuccess, onError)
+var postLogin = function(body)
 {
-  $.ajax(
+  return $.ajax(
     { url: '/login'
-    , success: onSuccess
     , data: JSON.stringify(body)
     , contentType: 'application/json'
-    , error: onError
     , type: 'POST'
     });
 }

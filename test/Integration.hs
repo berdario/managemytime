@@ -6,6 +6,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Either (runEitherT, EitherT)
 import Data.Text (unpack)
+import Data.Time.Calendar (fromGregorian)
 import System.Directory (doesFileExist, removeFile)
 import Network.HTTP.Types (statusCode)
 import Servant.API ((:<|>)(..))
@@ -17,7 +18,7 @@ import Test.Tasty (defaultMain, testGroup, TestName)
 import Test.Tasty.HUnit (testCase, testCaseSteps, (@=?), Assertion, assertFailure)
 
 import ManageMyTime (timeAPI)
-import ManageMyTime.Models (User(..), Task(..), get, insert, fromSqlKey, toSqlKey, runDb, doMigrations, connectionString)
+import ManageMyTime.Models (User(..), Task(..), Item(..), get, insert, fromSqlKey, toSqlKey, runDb, doMigrations, connectionString, createUser)
 import ManageMyTime.Types (AuthLevel(..), Registration(..))
 
 baseUrl = BaseUrl Http "localhost" 3000
@@ -74,10 +75,15 @@ main = do
 setupFixture :: IO ()
 setupFixture = runDb $ do
   liftIO $ putStrLn "attempt to create fixture data"
-  maxid <- insert $ User "max" Normal "14|8|1|yJix8ZSoF5XRHrMmRM9XbvXX3SfHH5GfT3uF0UCFhkE=|S3uVGARlFhX+q4agOoPdp4QfLViPtjJWnwg67e91/jSK107wHXwtmcfICaBHkhQLemwmOzbsHcnqSxp7dD+kuw==" Nothing
-  johnid <- insert $ User "john" Normal "" Nothing
-  insert $ Task "foo" maxid
-  insert $ Task "foo" johnid
+  maxid <- insert =<< (liftIO $ createUser "max" "xam" Normal (Just 1))
+  johnid <- insert =<< (liftIO $ createUser "john" "" Normal (Just 3))
+  adminid <- insert =<< (liftIO $ createUser "admin" "admin" Admin Nothing)
+  managerid <- insert =<< (liftIO $ createUser "manager" "manager" Manager Nothing)
+  maxTaskid <- insert $ Task "foo" maxid
+  johnTaskId <- insert $ Task "foo" johnid
+  insert $ Item maxTaskid maxid (fromGregorian 2015 8 14) 2
+  insert $ Item johnTaskId johnid (fromGregorian 2015 8 14) 1
+  insert $ Item johnTaskId johnid (fromGregorian 2015 8 15) 1
   liftIO $ putStrLn "fixture data OK"
 
 

@@ -3,17 +3,61 @@
   <meta charset="utf-8">
   <title>ManageMyTime</title>
   <script data-main="scripts/app.js" src="scripts/require.js" charset="utf-8"></script>
-</head>
+  <link href="css/bootstrap.css" rel="stylesheet">
+  <link href="css/main.css" rel="stylesheet">
+  </head>
 <body>
-  <form action="">
-    <input type="text">
-    <input type="password">
-    <button type="button" name="button"></button>
+  <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">ManageMyTime</a>
+        </div>
+      </div>
+    </nav>
 
-  </form>
-  <form action="">
-    <input type="number" name="hours" value="">
-    <button type="button" name="clear">clear</button>
-  </form>
+    <div class="container">
+      <div id="main">
+      <div class="" id="loginModal">
+        <div class="modal-body">
+          <div class="well">
+            <ul class="nav nav-tabs">
+              <li class="active"><a href="#login" data-toggle="tab">Login</a></li>
+              <li><a href="#create" data-toggle="tab">Create Account</a></li>
+            </ul>
+            <div id="myTabContent" class="tab-content">
+              <div class="tab-pane active in" id="login">
+                <form class="form-signin" id="loginForm">
+                  <h2 class="form-signin-heading">Please sign in</h2>
+                  <label for="inputUsername" class="sr-only">Username</label>
+                  <input type="text" id="inputUsername" class="form-control" placeholder="Username" required autofocus>
+                  <label for="inputPassword" class="sr-only">Password</label>
+                  <input type="password" id="inputPassword" class="form-control" placeholder="Password" required>
+                  <button class="btn btn-lg btn-primary btn-block" type="submit">Sign in</button>
+                  </form>
+              </div>
+              <div class="tab-pane fade" id="create">
+                <form class="form-signin">
+                  <label for="inputUsername" class="sr-only">Username</label>
+                  <input type="text" id="inputUsername" class="form-control" placeholder="Username" required autofocus>
+                  <label for="inputPassword" class="sr-only">Password</label>
+                  <input type="password" id="inputPassword" class="form-control" placeholder="Password" required>
+                  <label for="inputPasswordConfirm" class="sr-only">Confirm your password</label>
+                  <input type="password" id="inputPasswordConfirm" class="form-control" placeholder="Password" required>
+                  <button class="btn btn-lg btn-primary btn-block" type="submit">Create Account</button>
+                </form>
+        </div>
+      </div>
+    </div>
+  </div>
+    </div>
+</div>
+<div id="content"></div>
+</div>
 </body>
 </html>

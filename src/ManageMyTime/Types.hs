@@ -26,13 +26,14 @@ instance FromJSON Day where
   parseJSON _ = mzero
 
 type UserKey = Text
+type TaskKey = Text
 type ClientTask = Text
 type ClientUser = Text
 
 data AuthLevel = Normal | Manager | Admin deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 derivePersistField "AuthLevel"
 
-data UserWithPerm = UserWithPerm {username :: Text, auth :: AuthLevel} deriving (Eq, Show, Generic, ToJSON, FromJSON)
+data UserWithPerm = UserWithPerm {username :: Text, auth :: AuthLevel, prefHours :: Maybe Int} deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 data Registration = Registration
   { newUserName :: Text

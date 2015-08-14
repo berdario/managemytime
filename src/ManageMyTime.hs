@@ -66,7 +66,7 @@ type AuthenticatedAPI = Auth :> "task" :> CRUD (Key Task) ClientTask
                    :<|> Auth :> "preferred-hours" :> CRUDHours
                    :<|> Auth :> "profile" :> CRUDProfile
                    :<|> Auth :> "user" :> CRUD (Key User) UserWithPerm
-                   :<|> Auth :> "tasks" :> Get '[JSON] ([ClientTask], [ClientTask])
+                   :<|> Auth :> "tasks" :> Get '[JSON] (Map TaskKey ClientTask, Map TaskKey ClientTask)
                    :<|> Auth :> "items" :> GetItems
                    :<|> Auth :> "users" :> Get '[JSON] (Map UserKey UserWithPerm)
                    :<|> Auth :> "logout" :> Post '[JSON] ()
@@ -190,7 +190,7 @@ deleteProfile tkn = do
 
 validateAdmin = validateLevel Admin
 
-toUserWithPerm User{..} = UserWithPerm{username=userName, auth=userAuth}
+toUserWithPerm User{..} = UserWithPerm{username=userName, auth=userAuth, prefHours=userPreferredHours}
 
 getUser :: Text -> (Key User) -> AppM UserWithPerm
 getUser tkn key = do
@@ -200,8 +200,8 @@ getUser tkn key = do
 
 newUser tkn UserWithPerm{..} = do
   validateAdmin tkn
-  newuser <- liftIO $ createUser username $ pack ""
-  mNewKey <- runDb $ insertUnique newuser{userAuth=auth}
+  newuser <- liftIO $ createUser username (pack "") auth prefHours
+  mNewKey <- runDb $ insertUnique newuser
   hoistEither $ case mNewKey of
     (Just key) -> Right $ addHeader (userLink key) key
     Nothing -> Left err409
@@ -212,18 +212,18 @@ updateUser tkn key UserWithPerm{..} = do
   mTarget <- runDb $ get key
   case mTarget of
     Nothing -> left err404
-    (Just target) -> runDb $ replace key $ target{userName=username, userAuth=auth}
+    (Just target) -> runDb $ replace key $ target{userName=username, userAuth=auth, userPreferredHours=prefHours}
 
 deleteUser :: Text -> (Key User) -> AppM ()
 deleteUser tkn key = do
   validateAdmin tkn
   runDb $ delete key
 
-getTasks :: Text -> AppM ([ClientTask], [ClientTask])
+getTasks :: Text -> AppM (Map TaskKey ClientTask, Map TaskKey ClientTask)
 getTasks tkn = do
   usr <- fmap entityKey $ liftValidate tkn
   allTasks <- runDb $ selectList [] []
-  return $ both (map taskName) $ span ((usr==) . taskAuthorId) $ map entityVal allTasks
+  return $ both ((fmap taskName). toMap) $ span ((usr==) . taskAuthorId . entityVal) allTasks
 
 getItems :: Text -> Maybe Day -> Maybe Day -> AppM [Item]
 getItems tkn from to = do
@@ -243,7 +243,7 @@ logout tkn = do
   liftIO $ Auth.logout $ userName $ entityVal usr
 
 register Registration{..} = do
-  user <- liftIO $ createUser newUserName password
+  user <- liftIO $ createUser newUserName password Normal Nothing
   mNewKey <- runDb $ insertUnique user
   hoistEither $ case mNewKey of
     (Just key) -> Right $ addHeader profileLink ()

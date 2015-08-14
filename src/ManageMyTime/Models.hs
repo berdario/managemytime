@@ -28,7 +28,7 @@ import Database.Persist (toJsonText)
 import Database.Persist.Class (Unique)
 import Database.Persist.Sql (Key, PersistFieldSql, insert, insertUnique, get, getBy,
                              entityKey, entityVal, toSqlKey, fromSqlKey, selectList,
-                             Entity, update, (=.), (==.), (>.), (<.))
+                             Entity, update, (=.), (==.), (>=.), (<=.))
 import Database.Persist.Sqlite (SqlBackend(..), runSqlite, runMigration)
 import Database.Persist.TH (share, mkPersist, sqlSettings, mkMigrate, persistLowerCase)
 
@@ -57,7 +57,7 @@ Item json
 |]
 
 
-createUser name password = fmap (\hash -> User name Normal hash Nothing) hashIO
+createUser name password auth pref = fmap (\hash -> User name auth hash pref) hashIO
   where
    hashIO = fmap getEncryptedPass $ encryptPassIO' $ Pass $ encodeUtf8 password
 
@@ -72,13 +72,13 @@ toClientItem item = do
                     date=itemDay item, duration=itemDuration item}
 
 pickSelect _   True  Nothing     Nothing   = selectList [] []
-pickSelect _   True  (Just from) Nothing   = selectList [ItemDay >. from] []
-pickSelect _   True  Nothing     (Just to) = selectList [ItemDay <. to  ] []
-pickSelect _   True  (Just from) (Just to) = selectList [ItemDay >. from, ItemDay <. to] []
+pickSelect _   True  (Just from) Nothing   = selectList [ItemDay >=. from] []
+pickSelect _   True  Nothing     (Just to) = selectList [ItemDay <=. to  ] []
+pickSelect _   True  (Just from) (Just to) = selectList [ItemDay >=. from, ItemDay <=. to] []
 pickSelect usr False Nothing     Nothing   = selectList [ItemUserId ==. usr] []
-pickSelect usr False (Just from) Nothing   = selectList [ItemUserId ==. usr, ItemDay >. from] []
-pickSelect usr False Nothing     (Just to) = selectList [ItemUserId ==. usr, ItemDay <. to  ] []
-pickSelect usr False (Just from) (Just to) = selectList [ItemUserId ==. usr, ItemDay >. from, ItemDay <. to] []
+pickSelect usr False (Just from) Nothing   = selectList [ItemUserId ==. usr, ItemDay >=. from] []
+pickSelect usr False Nothing     (Just to) = selectList [ItemUserId ==. usr, ItemDay <=. to  ] []
+pickSelect usr False (Just from) (Just to) = selectList [ItemUserId ==. usr, ItemDay >=. from, ItemDay <=. to] []
 
 toMap :: (ToJSON (Key a)) => [Entity a] -> Map Text a
 toMap = fromList . map ((toJsonText.entityKey) &&& entityVal)
