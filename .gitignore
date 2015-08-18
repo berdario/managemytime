@@ -1,4 +1,4 @@
 .stack-work
 frontend/scripts/
 bower_components
-sqlite.db
+sqlite.db*

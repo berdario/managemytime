@@ -101,7 +101,7 @@ define(['api', 'jquery', 'ramda'], function(api_, jquery, _) {
       } else {
         document.getElementById('dateFilterForm').onsubmit = filteredUserSummary(token, username)
         getPreferredHours(token).done((hours)=>{
-          var users = [{username: username, prefHours: hours[0]}]
+          var users = [{username: username, prefHours: hours}]
           var table = [[username, indexByDay(items, items)]]
           var summary = summaryTable(allTasks, users, table, token)
           document.getElementById('main').appendChild(summary)
@@ -156,7 +156,6 @@ define(['api', 'jquery', 'ramda'], function(api_, jquery, _) {
 
   var filteredUserSummary = _.curry(function(token, username, event){
     var [from, to] = [event.target.from.value, event.target.to.value]
-    console.log('from, to: ', from, to)
     var itemsdef = getItems(from, to, token)
     var tasksdef = getTasks(token)
     var hoursdef = getPreferredHours(token)
@@ -174,7 +173,6 @@ define(['api', 'jquery', 'ramda'], function(api_, jquery, _) {
 
   var filteredManagerSummary = _.curry(function(token, event){
     var [from, to] = [event.target.from.value, event.target.to.value]
-    console.log('from, to: ', from, to)
     var idef = getItems(from, to, token)
     var tdef = getTasks(token)
     var udef = getUsers(token)
@@ -263,9 +261,7 @@ define(['api', 'jquery', 'ramda'], function(api_, jquery, _) {
 \n    '
     replace(event.target, fragment(itemFormTag))
     getTasks(token).done((tasksResp)=>{
-      console.log(tasksResp)
       var [mytasks, othersTasks] = tasksResp
-      console.log(mytasks, othersTasks)
       fillTaskSelect(document.getElementById('newItemTask'), mytasks, othersTasks)
       document.getElementById('newItemDate').value = (new Date).toISOString().substr(0,10)
       document.getElementById('newItemForm').onsubmit = newItem(token)
