@@ -1,11 +1,16 @@
 flags: {}
 packages:
 - '.'
-- '../servant/servant'
-- '../servant/servant-js'
-- '../servant/servant-server'
-- '../servant/servant-client'
-- '../servant/servant-docs'
+- location:
+    git: git@github.com:haskell-servant/servant.git
+    commit: 1a27e46f5c7f47cd433bfa2bf8d9e4d7b2f737e6
+  subdirs:
+  - servant
+  - servant-js
+  - servant-server
+  - servant-client
+  - servant-docs
 extra-deps:
   - scrypt-0.5.0
+  - cabal-helper-0.6.3.1
 resolver: lts-3.0

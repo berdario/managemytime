@@ -1,25 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Data.Either.Combinators (fromRight')
-import Control.Concurrent.Thread.Delay (delay)
-import Control.Monad (when)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Either (runEitherT, EitherT)
-import Data.Text (unpack)
-import Data.Time.Calendar (fromGregorian)
-import System.Directory (doesFileExist, removeFile)
-import Network.HTTP.Types (statusCode)
-import Servant.API ((:<|>)(..))
-import Servant.API.ResponseHeaders (getHeaders, getResponse)
-import Servant.Common.Req (ServantError(..))
-import Servant.Client (BaseUrl(..), Scheme(..), client)
+import           Control.Concurrent.Thread.Delay (delay)
+import           Control.Monad                   (when)
+import           Control.Monad.IO.Class          (liftIO)
+import           Control.Monad.Trans.Either      (EitherT, runEitherT)
+import           Data.Either.Combinators         (fromRight')
+import           Data.Text                       (unpack)
+import           Data.Time.Calendar              (fromGregorian)
+import           Network.HTTP.Types              (statusCode)
+import           Servant.API                     ((:<|>) (..))
+import           Servant.API.ResponseHeaders     (getHeaders, getResponse)
+import           Servant.Client                  (BaseUrl (..), Scheme (..),
+                                                  client)
+import           Servant.Common.Req              (ServantError (..))
+import           System.Directory                (doesFileExist, removeFile)
 
-import Test.Tasty (defaultMain, testGroup, TestName)
-import Test.Tasty.HUnit (testCase, testCaseSteps, (@=?), Assertion, assertFailure)
+import           Test.Tasty                      (TestName, defaultMain,
+                                                  testGroup)
+import           Test.Tasty.HUnit                (Assertion, assertFailure,
+                                                  testCase, testCaseSteps,
+                                                  (@=?))
 
-import ManageMyTime (timeAPI)
-import ManageMyTime.Models (User(..), Task(..), Item(..), get, insert, fromSqlKey, toSqlKey, runDb, doMigrations, connectionString, createUser)
-import ManageMyTime.Types
+import           ManageMyTime                    (timeAPI)
+import           ManageMyTime.Models             (Item (..), Task (..),
+                                                  User (..), connectionString,
+                                                  createUser, doMigrations,
+                                                  fromSqlKey, get, insert,
+                                                  runDb, toSqlKey)
+import           ManageMyTime.Types
 
 baseUrl = BaseUrl Http "localhost" 3000
 
@@ -79,11 +87,11 @@ setupFixture = runDb $ do
   johnid <- insert =<< (liftIO $ createUser "john" "a" Normal (Just 3))
   adminid <- insert =<< (liftIO $ createUser "admin" "admin" Admin Nothing)
   managerid <- insert =<< (liftIO $ createUser "manager" "manager" Manager Nothing)
-  maxTaskid <- insert $ Task "foo" maxid
-  johnTaskId <- insert $ Task "foo" johnid
-  insert $ Item maxTaskid maxid (fromGregorian 2015 8 14) 2
-  insert $ Item johnTaskId johnid (fromGregorian 2015 8 14) 1
-  insert $ Item johnTaskId johnid (fromGregorian 2015 8 15) 1
+  maxMinutesTaskId <- insert $ Task "minutes" maxid
+  johnMinutesTaskId <- insert $ Task "minutes" johnid
+  insert $ Item maxMinutesTaskId maxid (fromGregorian 2015 8 23) 2
+  insert $ Item johnMinutesTaskId johnid (fromGregorian 2015 8 23) 1
+  insert $ Item johnMinutesTaskId johnid (fromGregorian 2015 8 24) 1
   liftIO $ putStrLn "fixture data OK"
 
 
@@ -92,22 +100,39 @@ taskTests = testGroup "all tests"
     [testCase "registration" $ do
        fmap getResponse $ run $ register $ Registration{newUserName="franz", password="kafka"}
        tkn <- fmap getResponse $ run $ login Registration{newUserName="franz", password="kafka"}
-       let franzGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
+       let franzProfile :<|> _ :<|> _ = profileCrud $ Just tkn
+       --assert "franz" $ fmap username $ run franzProfile
+       assert "franz" franzProfile
+    ,testCase "concurrent users login" $ do
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="john", password="a"}
+       let johnProfile :<|> _ :<|> _ = profileCrud $ Just tkn
        tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
        let maxGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
-       assert "foo" $ maxGetTask $ toSqlKey 1
-       expect' (checkHttpErr 403) $ franzGetTask $ toSqlKey 1
+       assert "minutes" $ maxGetTask $ toSqlKey 1
+      --  assert "john" $ fmap username $ run johnProfile
+       assert "john" johnProfile
+    ,testCase "single login per user" $ do
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="john", password="a"}
+       let johnProfile :<|> _ :<|> _ = profileCrud $ Just tkn
        delay 1000000
-       tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
-       expect' (checkHttpErr 403) $ maxGetTask $ toSqlKey 1 -- new login invalidates old token
+       fmap getResponse $ run $ login Registration{newUserName="john", password="a"}
+       expect' (checkHttpErr 403) johnProfile -- new login invalidates old token
        ]
   ,testGroup "/task tests"
-    [testCase "getTask" $ assert "foo" $ getTask $ toSqlKey 1
+    [testCase "getTask" $ do
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+       let maxGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
+       tkn <- fmap getResponse $ run $ login Registration{newUserName="john", password="a"}
+       let johnGetTask :<|> _ :<|> _ :<|> _ = taskCrud $ Just tkn
+       assert "minutes" $ maxGetTask $ toSqlKey 1
+       expect' (checkHttpErr 403) $ johnGetTask $ toSqlKey 1
     ,testCase "newTask" $ do
-       response <- run $ newTask "fooz"
-       assert "fooz" $ getTask $ getResponse response
+      tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+      let maxGetTask :<|> maxNewTask :<|> _ :<|> _ = taskCrud $ Just tkn
+      response <- run $ maxNewTask "fooz"
+      assert "fooz" $ maxGetTask $ getResponse response
     ,testCase "duplicateTask" $ do
-       expect (checkHttpErr 409) $ newTask "foo"]
-  ,testGroup "/profile and registration test"
-    [testCase "registration" $ fmap getResponse $ run $ register $ Registration{newUserName="max",password="xam"}
-    ]]
+      tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+      let _ :<|> maxNewTask :<|> _ :<|> _ = taskCrud $ Just tkn
+      expect (checkHttpErr 409) $ maxNewTask "minutes"]
+  ]
