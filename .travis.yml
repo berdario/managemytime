@@ -1,0 +1,48 @@
+sudo: false
+
+# Choose a lightweight base image; we provide our own build tools.
+language: c
+
+cache:
+  directories:
+  - $HOME/.stack
+
+addons: {apt: {packages: [libgmp-dev]}}
+
+matrix:
+  include:
+  - env: ARGS=""
+    compiler: ": #stack default"
+
+  - env: ARGS="--resolver lts-2"
+    compiler: ": #stack 7.8.4"
+
+  - env: ARGS="--resolver lts-6"
+    compiler: ": #stack 7.10.3"
+
+  # Nightly builds are allowed to fail
+  - env: ARGS="--resolver nightly"
+    compiler: ": #stack nightly"
+
+  allow_failures:
+  - env: ARGS="--resolver nightly"
+  - env: ARGS="--resolver lts-2"
+  - env: ARGS="--resolver lts-6"
+
+before_install:
+# Setting compiler above sets CC to an invalid value, so unset it
+- unset CC
+# Download and unpack the stack executable
+- export PATH=$HOME/.local/bin:$PATH
+- mkdir -p ~/.local/bin
+- travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+install:
+- stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
+
+script:
+- stack --no-terminal $ARGS build
+- sh -c 'stack --no-terminal $ARGS exec managemytime-exe test &'
+- sleep 5
+- stack --no-terminal $ARGS test managemytime --bench --no-run-benchmarks --haddock --no-haddock-deps
+

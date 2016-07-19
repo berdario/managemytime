@@ -2,7 +2,7 @@ flags: {}
 packages:
 - '.'
 - location:
-    git: git@github.com:haskell-servant/servant.git
+    git: https://github.com/haskell-servant/servant.git
     commit: 1a27e46f5c7f47cd433bfa2bf8d9e4d7b2f737e6
   subdirs:
   - servant
