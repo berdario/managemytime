@@ -2,24 +2,29 @@
 
 module ManageMyTime.Auth where
 
-import Prelude hiding (exp, lookup)
-import GHC.Conc (atomically)
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Arrow ((&&&))
-import Control.Monad.IO.Class (liftIO)
-import Crypto.Scrypt (Pass(..), EncryptedPass(..), verifyPass')
-import Data.Aeson (ToJSON)
-import Data.Text.Encoding (encodeUtf8)
-import Data.Default (def)
-import Data.Text (Text)
-import Data.Time.Clock.POSIX (getPOSIXTime)
-import Database.Persist.Sql (getBy, entityVal, Entity)
-import Web.JWT (JWT, JSON, UnverifiedJWT, VerifiedJWT, JWTClaimsSet(..), Algorithm(..),
-                secret, decodeAndVerifySignature, encodeSigned, IntDate, intDate,
-                secondsSinceEpoch, stringOrURI, stringOrURIToText, claims)
-import STMContainers.Map (Map, newIO, lookup, insert, delete)
-import ManageMyTime.Models (runDb, Unique(..), userPasswordHash, User(..))
-import ManageMyTime.Types
+import           Control.Arrow          ((&&&))
+import           Control.Monad.IO.Class (liftIO)
+import           Crypto.Scrypt          (EncryptedPass (..), Pass (..),
+                                         verifyPass')
+import           Data.Aeson             (ToJSON)
+import           Data.Default           (def)
+import           Data.Text              (Text)
+import           Data.Text.Encoding     (encodeUtf8)
+import           Data.Time.Clock.POSIX  (getPOSIXTime)
+import           Database.Persist.Sql   (Entity, entityVal, getBy)
+import           GHC.Conc               (atomically)
+import           ManageMyTime.Models    (Unique (..), User (..), runDb,
+                                         userPasswordHash)
+import           ManageMyTime.Types
+import           Prelude                hiding (exp, lookup)
+import           STMContainers.Map      (Map, delete, insert, lookup, newIO)
+import           System.IO.Unsafe       (unsafePerformIO)
+import           Web.JWT                (Algorithm (..), IntDate, JSON, JWT,
+                                         JWTClaimsSet (..), UnverifiedJWT,
+                                         VerifiedJWT, claims,
+                                         decodeAndVerifySignature, encodeSigned,
+                                         intDate, secondsSinceEpoch, secret,
+                                         stringOrURI, stringOrURIToText)
 
 data ReasonInvalid = TokenCorrupted | TokenCorrupted2 | TokenExpired | LoggedOut | UserNameChanged deriving (Show)
 

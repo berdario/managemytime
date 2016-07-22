@@ -2,17 +2,19 @@
 
 module Main where
 
-import Prelude hiding (length)
-import Data.ByteString (ByteString, length)
-import System.Environment (getArgs)
+import           Data.ByteString             (ByteString, length)
+import           Prelude                     hiding (length)
+import           System.Environment          (getArgs)
 
-import Network.Wai.Handler.Warp (runSettings, getPort, defaultSettings)
-import Network.Wai.Handler.WarpTLS (runTLS, tlsCiphers, tlsSettingsMemory, tlsAllowedVersions)
+import           Network.Wai.Handler.Warp    (defaultSettings, getPort,
+                                              runSettings)
+import           Network.Wai.Handler.WarpTLS (runTLS, tlsAllowedVersions,
+                                              tlsCiphers, tlsSettingsMemory)
 
-import Servant.JS (writeJSForAPI, jquery)
+import           Servant.JS                  (jquery, writeJSForAPI)
 
-import ManageMyTime (app, timeAPI)
-import ManageMyTime.Models (doMigrations)
+import           ManageMyTime                (app, timeAPI)
+import           ManageMyTime.Models         (doMigrations)
 
 defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key
