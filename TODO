@@ -1,7 +1,4 @@
-integration test (check permissions)
-maybe add a nonce to the JWT, to ensure it'll always be different (this would remove the 1s delay from the integeation test)
 http security headers (also: Vary ?)
-use this ToJSON instance: http://stackoverflow.com/a/31941314/293735
 use a readerT to remove unsafePerformIO usage, and access a sql connection pool
 add cert pinning support to servant-client, to test code running on HTTPS (this would make it easy to use Secure cookies)
 fix servant-js identifier generation

@@ -1,22 +1,35 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell   #-}
+
 module ManageMyTime.Types (module ManageMyTime.Types, module ManageMyTime.UndecidableTypes) where
 
-import GHC.Generics (Generic)
-import Control.Monad (mzero)
-import Data.Aeson (ToJSON, toJSON, FromJSON, parseJSON, Value(String))
-import Data.Int (Int64)
-import Data.Text (Text, pack, unpack)
-import Data.Text.Encoding (decodeUtf8')
-import Network.URI (parseURIReference)
-import Text.Read (readMaybe)
-import Data.ByteString.Conversion (ToByteString, builder, FromByteString, parser)
-import Data.Time.Calendar (Day, showGregorian)
-import Database.Persist.TH (derivePersistField)
-import Servant (FromText, fromText, ToText, toText, URI)
+import           Control.Monad                 (mzero)
+import           Data.Aeson                    (FromJSON, ToJSON,
+                                                Value (String, Object),
+                                                eitherDecode, parseJSON, toJSON)
+import           Data.Aeson.Types              (Parser)
+import           Data.ByteString.Conversion    (FromByteString, ToByteString,
+                                                builder, parser)
+import qualified Data.HashMap.Strict           as HashMap
+import           Data.Int                      (Int64)
+import qualified Data.Map                      as Map
+import           Data.Text                     (Text, pack, unpack)
+import           Data.Text.Encoding            (decodeUtf8', encodeUtf8)
+import           Data.Time.Calendar            (Day, showGregorian)
+import           Database.Persist              (toJsonText)
+import           Database.Persist.Sql          (Key)
+import           Database.Persist.TH           (derivePersistField)
+import           GHC.Generics                  (Generic)
+import           Network.URI                   (parseURIReference)
+import           Servant                       (FromText, ToText, URI, fromText,
+                                                toText)
+import           Text.Read                     (readMaybe)
 
-import ManageMyTime.UndecidableTypes
+import           ManageMyTime.UndecidableTypes
 
 instance ToJSON Day where
   toJSON d = toJSON (showGregorian d)
@@ -25,8 +38,6 @@ instance FromJSON Day where
   parseJSON (String s) = maybe mzero return $ readMaybe $ unpack s
   parseJSON _ = mzero
 
-type UserKey = Text
-type TaskKey = Text
 type ClientTask = Text
 type ClientUser = Text
 
@@ -37,15 +48,31 @@ data UserWithPerm = UserWithPerm {username :: Text, auth :: AuthLevel, prefHours
 
 data Registration = Registration
   { newUserName :: Text
-  , password :: Text
+  , password    :: Text
   } deriving (Generic, ToJSON, FromJSON)
 
 data ClientItem = ClientItem
-  { task :: ClientTask
-  , taskid :: Int64
-  , date :: Day
+  { task     :: ClientTask
+  , taskid   :: Int64
+  , date     :: Day
   , duration :: Int -- assumption: hours, minutes?
   } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+newtype EntityMap k a = EntityMap (Map.Map k a) deriving (Functor)
+
+instance (ToJSON (Key a), ToJSON v) => ToJSON (EntityMap (Key a) v) where
+  toJSON (EntityMap m) = Object $ Map.foldrWithKey f mempty m
+    where f k v = HashMap.insert (toJsonText k) (toJSON v)
+
+instance (Ord (Key a), FromJSON (Key a), FromJSON v) => FromJSON (EntityMap (Key a) v) where
+  parseJSON (Object m) = EntityMap <$> HashMap.foldrWithKey parseKeyPairs (pure mempty) m
+    where
+      parseKeyPairs :: (Ord (Key a), FromJSON (Key a), FromJSON v) => Text -> Value -> Parser (Map.Map (Key a) v) -> Parser (Map.Map (Key a) v)
+      parseKeyPairs k v mapParser = do
+        key <- parseJSON $ Data.Aeson.String k
+        value <- parseJSON v
+        fmap (Map.insert key value) mapParser
+  parseJSON _ = mzero
 
 instance FromText Day where
   fromText = readMaybe . unpack

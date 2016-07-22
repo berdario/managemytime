@@ -67,9 +67,9 @@ type AuthenticatedAPI = Auth :> "task" :> CRUD (Key Task) ClientTask
                    :<|> Auth :> "preferred-hours" :> CRUDHours
                    :<|> Auth :> "profile" :> CRUDProfile
                    :<|> Auth :> "user" :> CRUD (Key User) UserWithPerm
-                   :<|> Auth :> "tasks" :> Get '[JSON] (Map TaskKey ClientTask, Map TaskKey ClientTask)
+                   :<|> Auth :> "tasks" :> Get '[JSON] (EntityMap (Key Task) ClientTask, EntityMap (Key Task) ClientTask)
                    :<|> Auth :> "items" :> GetItems
-                   :<|> Auth :> "users" :> Get '[JSON] (Map UserKey UserWithPerm)
+                   :<|> Auth :> "users" :> Get '[JSON] (EntityMap (Key User) UserWithPerm)
                    :<|> Auth :> "logout" :> Post '[JSON] ()
 
 type TimeAPI = AuthenticatedAPI
@@ -220,7 +220,7 @@ deleteUser tkn key = do
   validateAdmin tkn
   runDb $ delete key
 
-getTasks :: Text -> AppM (Map TaskKey ClientTask, Map TaskKey ClientTask)
+getTasks :: Text -> AppM (EntityMap (Key Task) ClientTask, EntityMap (Key Task) ClientTask)
 getTasks tkn = do
   usr <- fmap entityKey $ liftValidate tkn
   allTasks <- runDb $ selectList [] []
@@ -231,7 +231,7 @@ getItems tkn from to = do
   (key, auth) <- fmap (entityKey &&& (userAuth.entityVal)) $ liftValidate tkn
   runDb $ pickSelect key (auth >= Manager) from to
 
-getUsers :: Text -> AppM (Map UserKey UserWithPerm)
+getUsers :: Text -> AppM (EntityMap (Key User) UserWithPerm)
 getUsers tkn = do
   validateLevel Manager tkn
   users <- runDb $ selectList [] []

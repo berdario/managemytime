@@ -1,38 +1,43 @@
 --{-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE FlexibleContexts #-} -- it'd be nice to avoid this
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
+-- it'd be nice to avoid FlexibleContexts
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module ManageMyTime.Models
     (module ManageMyTime.Models, Key, toSqlKey, fromSqlKey, get, insert,
      insertUnique, Unique(..)) where
 
-import Data.Maybe
+import           Data.Maybe
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Arrow ((&&&))
-import Crypto.Scrypt (EncryptedPass, Pass(..), getEncryptedPass, encryptPassIO')
-import Data.Aeson (ToJSON)
-import Data.Map.Strict (Map, fromList)
-import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
-import Data.ByteString (ByteString)
-import Data.Time.Calendar (Day)
-import Database.Persist (toJsonText)
-import Database.Persist.Class (Unique)
-import Database.Persist.Sql (Key, PersistFieldSql, insert, insertUnique, get, getBy,
-                             entityKey, entityVal, toSqlKey, fromSqlKey, selectList,
-                             Entity, update, (=.), (==.), (>=.), (<=.))
-import Database.Persist.Sqlite (SqlBackend(..), runSqlite, runMigration)
-import Database.Persist.TH (share, mkPersist, sqlSettings, mkMigrate, persistLowerCase)
+import           Control.Arrow           ((&&&))
+import           Control.Monad.IO.Class  (liftIO)
+import           Crypto.Scrypt           (EncryptedPass, Pass (..),
+                                          encryptPassIO', getEncryptedPass)
+import           Data.Aeson              (ToJSON)
+import           Data.ByteString         (ByteString)
+import           Data.Map.Strict         (Map, fromList)
+import           Data.Text               (Text)
+import           Data.Text.Encoding      (encodeUtf8)
+import           Data.Time.Calendar      (Day)
+import           Database.Persist.Class  (Unique)
+import           Database.Persist.Sql    (Entity, Key, PersistFieldSql,
+                                          entityKey, entityVal, fromSqlKey, get,
+                                          getBy, insert, insertUnique,
+                                          selectList, toSqlKey, update, (<=.),
+                                          (=.), (==.), (>=.))
+import           Database.Persist.Sqlite (SqlBackend (..), runMigration,
+                                          runSqlite)
+import           Database.Persist.TH     (mkMigrate, mkPersist,
+                                          persistLowerCase, share, sqlSettings)
 
-import ManageMyTime.Types
+import           ManageMyTime.Types
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 User
@@ -80,8 +85,8 @@ pickSelect usr False (Just from) Nothing   = selectList [ItemUserId ==. usr, Ite
 pickSelect usr False Nothing     (Just to) = selectList [ItemUserId ==. usr, ItemDay <=. to  ] []
 pickSelect usr False (Just from) (Just to) = selectList [ItemUserId ==. usr, ItemDay >=. from, ItemDay <=. to] []
 
-toMap :: (ToJSON (Key a)) => [Entity a] -> Map Text a
-toMap = fromList . map ((toJsonText.entityKey) &&& entityVal)
+toMap :: (Ord (Key a)) => [Entity a] -> EntityMap (Key a) a
+toMap = EntityMap . fromList . map (entityKey &&& entityVal)
 
 connectionString :: Text
 connectionString = "sqlite.db"
