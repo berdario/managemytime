@@ -30,6 +30,7 @@ data ReasonInvalid = TokenCorrupted | TokenCorrupted2 | TokenExpired | LoggedOut
 
 jwtSecret = secret "X5LjzvSUdP+OTPlhrFcE6lRwsy8FGTuuNMet0f/Kd1O3DZPbB78BC6t7HEgTFflveh0J834ofEkU"
 
+{-# NOINLINE sessions #-}
 sessions = unsafePerformIO newIO
 
 decode :: Text -> Maybe (JWT VerifiedJWT)
