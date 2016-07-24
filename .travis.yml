@@ -11,27 +11,15 @@ addons: {apt: {packages: [libgmp-dev]}}
 
 matrix:
   include:
-  - env: ARGS=""
-    compiler: ": #stack default"
-
-  - env: ARGS="--resolver lts-2"
-    compiler: ": #stack 7.8.4"
-
-  - env: ARGS="--resolver lts-6"
-    compiler: ": #stack 7.10.3"
-
-  # Nightly builds are allowed to fail
-  - env: ARGS="--resolver nightly"
-    compiler: ": #stack nightly"
+  - env: STACK_YAML=stack.yaml
+  - env: STACK_YAML=stack-ghc-7.8.yaml
+  - env: STACK_YAML=stack.yaml ARGS="--resolver nightly"
 
   allow_failures:
-  - env: ARGS="--resolver nightly"
-  - env: ARGS="--resolver lts-2"
-  - env: ARGS="--resolver lts-6"
+  - env: STACK_YAML=stack.yaml ARGS="--resolver nightly"
+  - env: STACK_YAML=stack-ghc-7.8.yaml
 
 before_install:
-# Setting compiler above sets CC to an invalid value, so unset it
-- unset CC
 # Download and unpack the stack executable
 - export PATH=$HOME/.local/bin:$PATH
 - mkdir -p ~/.local/bin
