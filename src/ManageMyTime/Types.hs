@@ -5,38 +5,31 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module ManageMyTime.Types (module ManageMyTime.Types, module ManageMyTime.UndecidableTypes) where
+module ManageMyTime.Types where
 
-import           Control.Monad                 (mzero)
-import           Data.Aeson                    (FromJSON, ToJSON,
-                                                Value (String, Object),
-                                                eitherDecode, parseJSON, toJSON)
-import           Data.Aeson.Types              (Parser)
-import           Data.ByteString.Conversion    (FromByteString, ToByteString,
-                                                builder, parser)
-import qualified Data.HashMap.Strict           as HashMap
-import           Data.Int                      (Int64)
-import qualified Data.Map                      as Map
-import           Data.Text                     (Text, pack, unpack)
-import           Data.Text.Encoding            (decodeUtf8', encodeUtf8)
-import           Data.Time.Calendar            (Day, showGregorian)
-import           Database.Persist              (toJsonText)
-import           Database.Persist.Sql          (Key)
-import           Database.Persist.TH           (derivePersistField)
-import           GHC.Generics                  (Generic)
-import           Network.URI                   (parseURIReference)
-import           Servant                       (FromText, ToText, URI, fromText,
-                                                toText)
-import           Text.Read                     (readMaybe)
-
-import           ManageMyTime.UndecidableTypes
-
-instance ToJSON Day where
-  toJSON d = toJSON (showGregorian d)
-
-instance FromJSON Day where
-  parseJSON (String s) = maybe mzero return $ readMaybe $ unpack s
-  parseJSON _ = mzero
+import           Control.Monad              (mzero)
+import           Data.Aeson                 (FromJSON, ToJSON,
+                                             Value (String, Object), parseJSON,
+                                             toJSON)
+import           Data.Aeson.Types           (Parser)
+import           Data.ByteString.Conversion (FromByteString, ToByteString,
+                                             builder, parser)
+import qualified Data.HashMap.Strict        as HashMap
+import           Data.Int                   (Int64)
+import qualified Data.Map                   as Map
+import           Data.Text                  (Text, pack, unpack)
+import           Data.Text.Encoding         (encodeUtf8)
+import           Data.Time.Calendar         (Day)
+import           Database.Persist           (toJsonText)
+import           Database.Persist.Sql       (Key)
+import           Database.Persist.TH        (derivePersistField)
+import           GHC.Generics               (Generic)
+import           Network.URI                (escapeURIString,
+                                             isUnescapedInURIComponent,
+                                             parseURIReference, unEscapeString)
+import           Servant                    (URI)
+import           Web.HttpApiData            (FromHttpApiData, ToHttpApiData,
+                                             parseQueryParam, toQueryParam)
 
 type ClientTask = Text
 type ClientUser = Text
@@ -74,21 +67,20 @@ instance (Ord (Key a), FromJSON (Key a), FromJSON v) => FromJSON (EntityMap (Key
         fmap (Map.insert key value) mapParser
   parseJSON _ = mzero
 
-instance FromText Day where
-  fromText = readMaybe . unpack
 
-instance ToText Day where
-  toText = pack . showGregorian
+instance FromHttpApiData URI where
+  -- we rely on fromHeader to decode the bytestring... it's using utf8 which might not be valid
+  -- but Network.URI doesn't support unicode urls, and thus we wouldn't get a valid URI out of parseURIReference anyhow
+  parseQueryParam txt = maybe invalidURI Right $ parseURIReference $ unEscapeString $ unpack txt
+    where
+      invalidURI = Left $ pack $ "Invalid URI: " ++ show txt
 
--- this is correct only for ASCII urls, the proper solution would involve urlencoding and punycode
-instance ToByteString URI where
-  builder uri = builder $ show uri
+-- this is correct only for ASCII urls, which are the only ones supported by Network.URI
+instance ToHttpApiData URI where
+  toQueryParam = pack . escapeURIString isUnescapedInURIComponent . show
 
 instance FromByteString URI where
-  parser = do
-    ptxt <- fmap decodeUtf8' parser
-    let parseText (Right txt) = maybe invalidURI return $ parseURIReference $ unpack txt
-          where
-            invalidURI = fail $ "Invalid URI: " ++ show txt
-        parseText (Left exc) = fail $ "Invalid UTF-8: " ++ show exc
-    parseText ptxt
+  parser = (either (fail . unpack) return . parseQueryParam) =<< parser
+
+instance ToByteString URI where
+  builder = builder . toQueryParam

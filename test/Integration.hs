@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Concurrent.Thread.Delay (delay)
+import           Control.Exception               (bracket)
 import           Control.Monad                   (when)
 import           Control.Monad.IO.Class          (liftIO)
-import           Control.Monad.Trans.Either      (EitherT, runEitherT)
+import           Control.Monad.Trans.Except      (ExceptT, runExceptT)
 import           Data.Either.Combinators         (fromRight')
 import           Data.Text                       (unpack)
 import           Data.Time.Calendar              (fromGregorian)
+import qualified Network.HTTP.Client             as HTTP
 import           Network.HTTP.Types              (statusCode)
 import           Servant.API                     ((:<|>) (..))
 import           Servant.API.ResponseHeaders     (getHeaders, getResponse)
@@ -29,7 +31,8 @@ import           ManageMyTime.Models             (Item (..), Task (..),
                                                   runDb, toSqlKey)
 import           ManageMyTime.Types
 
-baseUrl = BaseUrl Http "localhost" 3000
+baseUrl = BaseUrl Http "localhost" 3000 ""
+withManager = bracket (HTTP.newManager HTTP.defaultManagerSettings) return
 
 getTask :<|> newTask :<|> updateTask :<|> deleteTask = taskCrud $ Just ""
 getItem :<|> newItem :<|> updateItem :<|> deleteItem = itemCrud $ Just ""
@@ -39,34 +42,34 @@ getUser :<|> newUser :<|> updateUser :<|> deleteUser = userCrud $ Just ""
 --
 taskCrud :<|> itemCrud :<|> preferredHoursCrud :<|> profileCrud :<|> userCrud :<|> getTasks :<|> getItems :<|> getUsers = authApi
 
-authApi :<|> register :<|> login = client timeAPI baseUrl
+authApi :<|> register :<|> login = client timeAPI
 
-run op = do
-  result <- runEitherT op
+run op = withManager (\manager -> do
+  result <- runExceptT $ op manager baseUrl
   either (assertFailure . show) (const $ return ()) result
-  return $ fromRight' result
+  return $ fromRight' result)
 
-runWith a op = do
-  b <- runEitherT op
+runWith a op = withManager (\manager -> do
+  b <- runExceptT $ op manager baseUrl
   either (assertFailure . show) (a @=?) b
-  return b
+  return b)
 
 checkHttpErr err (FailureResponse status _ _) = err @=? (statusCode status)
 checkHttpErr _ f = assertFailure $ "unexpected error " ++ show f
 
-expect errChecker op = do
-  result <- runEitherT op
-  either errChecker unexpected result
+expect errChecker op = withManager (\manager -> do
+  result <- runExceptT $ op manager baseUrl
+  either errChecker unexpected result)
   where
     unexpected resp = assertFailure $ "unexpected success " ++ (show $ getResponse resp)
 
-expect' errChecker op = do
-  result <- runEitherT op
-  either errChecker unexpected result
+expect' errChecker op = withManager (\manager -> do
+  result <- runExceptT $ op manager baseUrl
+  either errChecker unexpected result)
   where
     unexpected resp = assertFailure $ "unexpected success " ++ show resp
 
-assert :: (Eq a, Show a) => a -> EitherT ServantError IO a -> Assertion
+assert :: (Eq a, Show a) => a -> (HTTP.Manager -> BaseUrl -> ExceptT ServantError IO a) -> Assertion
 assert a b = runWith a b >> return ()
 
 deleteIfExists fname = do

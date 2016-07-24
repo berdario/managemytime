@@ -5,3 +5,4 @@ fix servant-js identifier generation
 Why records aren't implementing Eq? then define (Eq (Unique User)) et al?
 generate documentation
 server side check for nonpositive durations
+test stack's containers and nix support
