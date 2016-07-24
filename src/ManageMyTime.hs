@@ -25,7 +25,7 @@ import Data.Aeson (ToJSON, FromJSON)
 import Data.Time.Calendar (Day, showGregorian)
 import Data.Tuple.Extra (both)
 import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBackend, SqlBackend(..),
-                             delete, replace, entityVal, selectList)
+                             delete, replace, replaceUnique, entityVal, selectList)
 import Network.Wai (Application)
 import Servant (JSON, (:>), (:<|>)(..), Proxy(..), ServantErr(..), Capture, Headers, Header,
                 ReqBody, QueryParam, Get, Post, Put, Delete, err403, err404, err409, Raw)
@@ -90,7 +90,16 @@ userLink = apiLink (Proxy :: Proxy (Auth :> "user" :> Capture "id" (Key User) :>
 
 type AppM = ExceptT Servant.ServantErr IO
 
-decorateAuthError tknErr = err403{errBody=encodeUtf8 $ TL.pack $ show $ tknErr}
+
+decorateServantError :: (Show a) => ServantErr -> a -> ServantErr
+decorateServantError sErr errShowable = sErr{errBody=encodeUtf8 $ TL.pack $ show $ errShowable}
+
+decorateAuthError :: (Show a) => a -> ServantErr
+decorateAuthError = decorateServantError err403
+
+reportDuplicateError :: (Show (Unique a)) => Maybe (Unique a) -> AppM ()
+reportDuplicateError Nothing = return ()
+reportDuplicateError (Just duplicate) = throwE $ decorateServantError err409  $ "Duplicate record: " ++ show duplicate
 
 liftValidate :: Text -> AppM (Entity User)
 liftValidate tkn = withExceptT decorateAuthError $ ExceptT $ Auth.validate tkn
@@ -181,8 +190,7 @@ getProfile tkn = do
 updateProfile :: Text -> Text -> AppM ()
 updateProfile tkn newname = do
   usr <- liftValidate tkn
-  -- it'd be nice to use replaceUnique here, but `No instance for (Eq (Unique User))`
-  runDb $ replace (entityKey usr) $ (entityVal usr){userName=newname}
+  reportDuplicateError =<< (runDb $ replaceUnique (entityKey usr) $ (entityVal usr){userName=newname})
 
 
 deleteProfile :: Text -> AppM ()
@@ -214,7 +222,7 @@ updateUser tkn key UserWithPerm{..} = do
   mTarget <- runDb $ get key
   case mTarget of
     Nothing -> throwE err404
-    (Just target) -> runDb $ replace key $ target{userName=username, userAuth=auth, userPreferredHours=prefHours}
+    (Just target) -> reportDuplicateError =<< (runDb $ replaceUnique key $ target{userName=username, userAuth=auth, userPreferredHours=prefHours})
 
 deleteUser :: Text -> (Key User) -> AppM ()
 deleteUser tkn key = do
@@ -251,7 +259,7 @@ register Registration{..} = do
     Nothing -> throwE err409
 
 login Registration{..} = do
-  tkn <- withExceptT decorateAuthError  $ ExceptT $ Auth.login newUserName password
+  tkn <- withExceptT decorateAuthError $ ExceptT $ Auth.login newUserName password
   return $ addHeader itemsLink tkn
 
 

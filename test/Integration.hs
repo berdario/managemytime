@@ -138,4 +138,10 @@ taskTests = testGroup "all tests"
       tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
       let _ :<|> maxNewTask :<|> _ :<|> _ = taskCrud $ Just tkn
       expect (checkHttpErr 409) $ maxNewTask "minutes"]
+  ,testGroup "/profile tests"
+    [testCase "updateProfile" $ do
+      tkn <- fmap getResponse $ run $ login Registration{newUserName="max", password="xam"}
+      let maxGetProfile :<|> maxUpdateProfile :<|> maxDeleteProfile = profileCrud $ Just tkn
+      assert "max" maxGetProfile
+      expect' (checkHttpErr 409) $ maxUpdateProfile "john"]
   ]

@@ -1,8 +1,6 @@
 http security headers (also: Vary ?)
 use a readerT to remove unsafePerformIO usage, and access a sql connection pool
 add cert pinning support to servant-client, to test code running on HTTPS (this would make it easy to use Secure cookies)
-fix servant-js identifier generation
-Why records aren't implementing Eq? then define (Eq (Unique User)) et al?
 generate documentation
 server side check for nonpositive durations
 test stack's containers and nix support

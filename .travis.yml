@@ -12,7 +12,7 @@ addons: {apt: {packages: [libgmp-dev]}}
 matrix:
   include:
   - env: STACK_YAML=stack.yaml
-  - env: STACK_YAML=stack-ghc-7.8.yaml
+#  - env: STACK_YAML=stack-ghc-7.8.yaml # jwt does not support ghc 7.8
   - env: STACK_YAML=stack.yaml ARGS="--resolver nightly"
 
   allow_failures:

@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
@@ -47,6 +48,7 @@ User
     passwordHash ByteString
     preferredHours Int Maybe
     deriving Show
+    deriving Eq
 Task
     name Text
     authorId UserId
@@ -60,6 +62,9 @@ Item json
     DayTask userId day taskId
     deriving Show
 |]
+
+deriving instance Eq (Unique User)
+deriving instance Show (Unique User)
 
 
 createUser name password auth pref = fmap (\hash -> User name auth hash pref) hashIO
