@@ -8,9 +8,10 @@ import           Control.Monad.Trans.Except      (ExceptT, runExceptT)
 import           Data.Either.Combinators         (fromRight')
 import           Data.Text                       (unpack)
 import           Data.Time.Calendar              (fromGregorian)
+import           Database.Persist.Sql            (ConnectionPool, runSqlPool)
 import qualified Network.HTTP.Client             as HTTP
 import           Network.HTTP.Types              (statusCode)
-import           Servant.API                     ((:<|>) (..))
+import           Servant.API                     ((:<|>) (..), Headers)
 import           Servant.API.ResponseHeaders     (getHeaders, getResponse)
 import           Servant.Client                  (BaseUrl (..), Scheme (..),
                                                   client)
@@ -24,11 +25,12 @@ import           Test.Tasty.HUnit                (Assertion, assertFailure,
                                                   (@=?))
 
 import           ManageMyTime                    (timeAPI)
-import           ManageMyTime.Models             (Item (..), Task (..),
-                                                  User (..), connectionString,
+import           ManageMyTime.Models             (AppQuery, Item (..),
+                                                  Task (..), User (..),
+                                                  connectionString, createPool,
                                                   createUser, doMigrations,
                                                   fromSqlKey, get, insert,
-                                                  runDb, toSqlKey)
+                                                  toSqlKey)
 import           ManageMyTime.Types
 
 baseUrl = BaseUrl Http "localhost" 3000 ""
@@ -44,25 +46,39 @@ taskCrud :<|> itemCrud :<|> preferredHoursCrud :<|> profileCrud :<|> userCrud :<
 
 authApi :<|> register :<|> login = client timeAPI
 
+run :: Show a => (HTTP.Manager -> BaseUrl -> ExceptT a IO r) -> IO r
 run op = withManager (\manager -> do
   result <- runExceptT $ op manager baseUrl
   either (assertFailure . show) (const $ return ()) result
   return $ fromRight' result)
 
+runWith :: (Eq b, Show b, Show a) =>
+        b -> (HTTP.Manager -> BaseUrl -> ExceptT a IO b) -> IO (Either a b)
 runWith a op = withManager (\manager -> do
   b <- runExceptT $ op manager baseUrl
   either (assertFailure . show) (a @=?) b
   return b)
 
+checkHttpErr :: Int -> ServantError -> Assertion
 checkHttpErr err (FailureResponse status _ _) = err @=? (statusCode status)
 checkHttpErr _ f = assertFailure $ "unexpected error " ++ show f
 
+expect :: Show r =>
+      (a -> IO ()) ->
+      (HTTP.Manager ->
+          BaseUrl ->
+          ExceptT a IO (Headers ls r)) ->
+      IO ()
 expect errChecker op = withManager (\manager -> do
   result <- runExceptT $ op manager baseUrl
   either errChecker unexpected result)
   where
     unexpected resp = assertFailure $ "unexpected success " ++ (show $ getResponse resp)
 
+expect' :: Show b =>
+        (a -> IO ()) ->
+        (HTTP.Manager -> BaseUrl -> ExceptT a IO b) ->
+        IO ()
 expect' errChecker op = withManager (\manager -> do
   result <- runExceptT $ op manager baseUrl
   either errChecker unexpected result)
@@ -79,12 +95,13 @@ deleteIfExists fname = do
 main :: IO ()
 main = do
   deleteIfExists $ unpack connectionString
-  doMigrations
-  setupFixture
+  pool <- createPool
+  doMigrations pool
+  setupFixture pool
   defaultMain taskTests
 
-setupFixture :: IO ()
-setupFixture = runDb $ do
+setupFixture :: ConnectionPool -> IO ()
+setupFixture = runSqlPool $ do
   liftIO $ putStrLn "attempt to create fixture data"
   maxid <- insert =<< (liftIO $ createUser "max" "xam" Normal (Just 1))
   johnid <- insert =<< (liftIO $ createUser "john" "a" Normal (Just 3))

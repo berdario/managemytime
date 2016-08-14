@@ -12,9 +12,11 @@ import           Network.Wai.Handler.WarpTLS (runTLS, tlsAllowedVersions,
                                               tlsCiphers, tlsSettingsMemory)
 
 import           Servant.JS                  (jquery, writeJSForAPI)
+import           STMContainers.Map           (newIO)
 
 import           ManageMyTime                (app, timeAPI)
-import           ManageMyTime.Models         (doMigrations)
+import           ManageMyTime.Models         (AppEnv (..), createPool,
+                                              doMigrations)
 
 defaultTls = case length cert > 15 of
   True -> tlsSettingsMemory cert key
@@ -24,20 +26,23 @@ latestTLS = head $ tlsAllowedVersions defaultTls
 ciphers = take 2 $ tlsCiphers defaultTls -- take the first 2, currently the GCM ciphers
 tlsSettings = defaultTls{tlsAllowedVersions=[latestTLS], tlsCiphers=ciphers}
 
-tlsServer = do
+tlsServer env = do
   putStrLn $ "accepting " ++ show latestTLS ++ " with ciphers " ++ show ciphers
-  runTLS tlsSettings defaultSettings app
+  runTLS tlsSettings defaultSettings $ app env
 
-testServer = runSettings defaultSettings app
+testServer env = runSettings defaultSettings $ app env
 
 main :: IO ()
 main = do
   putStrLn "Writing javascript api to api.js, check its validity before shipping it"
   writeJSForAPI timeAPI jquery "api.js"
-  doMigrations
+  pool <- createPool
+  sessions <- newIO
+  let env = AppEnv{getPool=pool, getSessions=sessions}
+  doMigrations pool
   putStrLn $ "listening on " ++ show (getPort defaultSettings)
   args <- getArgs
-  if args == ["test"] then testServer else tlsServer
+  (if args == ["test"] then testServer else tlsServer) env
 
 cert :: ByteString
 cert = "{{tls.cert}}"

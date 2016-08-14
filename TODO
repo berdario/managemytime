@@ -1,5 +1,4 @@
 http security headers (also: Vary ?)
-use a readerT to remove unsafePerformIO usage, and access a sql connection pool
 add cert pinning support to servant-client, to test code running on HTTPS (this would make it easy to use Secure cookies)
 generate documentation
 server side check for nonpositive durations

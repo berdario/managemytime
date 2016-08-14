@@ -44,6 +44,8 @@ library
                      , data-default
                      , extra
                      , http-api-data
+                     , mtl
+                     , monad-logger
   default-language:    Haskell2010
 
 executable managemytime-exe
@@ -56,6 +58,7 @@ executable managemytime-exe
                      , warp
                      , warp-tls
                      , bytestring
+                     , stm-containers
   default-language:    Haskell2010
 
 test-suite managemytime-test
@@ -87,6 +90,7 @@ test-suite functional-tests
                      , unbounded-delays
                      , time
                      , http-client
+                     , persistent
   ghc-options:         -rtsopts
   default-language:    Haskell2010
 

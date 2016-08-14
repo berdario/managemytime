@@ -14,7 +14,10 @@ import Control.Arrow ((&&&))
 import Control.Error.Util (note, noteT)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except (ExceptT(..), throwE, withExceptT)
+import Control.Monad.Reader (runReaderT)
+import Control.Monad.Error (throwError)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Except (ExceptT)
 import Text.Read (readMaybe)
 import Data.Int (Int64)
 import Data.List (partition)
@@ -28,14 +31,14 @@ import Data.Tuple.Extra (both)
 import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBackend, SqlBackend(..),
                              delete, replace, replaceUnique, entityVal, selectList)
 import Network.Wai (Application)
+import Network.URI (URI)
 import Servant (JSON, (:>), (:<|>)(..), Proxy(..), ServantErr(..), Capture, Headers, Header,
                 ReqBody, QueryParam, Get, Post, Put, Delete, err403, err404, err409, Raw)
-import qualified Servant
-import Servant (URI)
+import Servant (ServerT, Server, serveDirectory, serve, (:~>)(..), enter, URI)
 import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-import ManageMyTime.Models (get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb,
+import ManageMyTime.Models (AppEnv, AppM, Token, get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb,
                             Key, Item(..), Task(..), User(..), createUser, updateTaskName,
                             toClientItem, userPreferredHours, setPreferredHours, userName,
                             Unique(..), pickSelect, toMap)
@@ -95,8 +98,6 @@ profileLink = apiLink (Proxy :: Proxy (Auth :> "profile" :> Get '[JSON] ClientUs
 userLink :: Key User -> URI
 userLink = apiLink (Proxy :: Proxy (Auth :> "user" :> Capture "id" (Key User) :> Get '[JSON] UserWithPerm))
 
-type AppM = ExceptT Servant.ServantErr IO
-
 
 decorateServantError :: (Show a) => ServantErr -> a -> ServantErr
 decorateServantError sErr errShowable = sErr{errBody=encodeUtf8 $ TL.pack $ show $ errShowable}
@@ -106,26 +107,30 @@ decorateAuthError = decorateServantError err403
 
 reportDuplicateError :: (Show (Unique a)) => Maybe (Unique a) -> AppM ()
 reportDuplicateError Nothing = return ()
-reportDuplicateError (Just duplicate) = throwE $ decorateServantError err409  $ "Duplicate record: " ++ show duplicate
+reportDuplicateError (Just duplicate) = throwError $ decorateServantError err409  $ "Duplicate record: " ++ show duplicate
 
 liftValidate :: Text -> AppM (Entity User)
-liftValidate tkn = withExceptT decorateAuthError $ ExceptT $ Auth.validate tkn
+liftValidate tkn = do
+  eitherUsr <- Auth.validate tkn
+  case eitherUsr of
+    Right usr -> return usr
+    Left reason -> throwError $ decorateAuthError reason
 
-validateLevel :: AuthLevel -> Text -> AppM (Entity User)
-validateLevel minLevel = (\u -> if (>= minLevel)(userAuth $ entityVal u) then (return u) else (throwE err403)) <=< liftValidate
+validateLevel :: AuthLevel -> Token -> AppM (Entity User)
+validateLevel minLevel = (\u -> if (>= minLevel)(userAuth $ entityVal u) then (return u) else (throwError err403)) <=< liftValidate
 
 withUserFrom :: (PersistEntity val, PersistEntityBackend val ~ SqlBackend) => (Entity User -> (Key val) -> val -> AppM b) -> Text -> (Key val) -> AppM b
 withUserFrom f tkn key = do
   usr <- liftValidate tkn
   mTask <- runDb $ get key
   case mTask of
-    Nothing -> throwE err404
+    Nothing -> throwError err404
     (Just task) -> f usr key task
 
 
 withTaskPerms :: (Entity User -> (Key Task) -> Task -> AppM b) -> Text -> (Key Task) -> AppM b
 withTaskPerms f = withUserFrom f'
-  where f' = (\usr key task -> if (entityKey usr == taskAuthorId task) then (f usr key task) else throwE err403)
+  where f' = (\usr key task -> if (entityKey usr == taskAuthorId task) then (f usr key task) else throwError err403)
 
 getTask :: Text -> (Key Task) -> AppM ClientTask
 getTask = withTaskPerms (\_ _ t -> return $ taskName t)
@@ -139,24 +144,24 @@ newTask tkn taskname = do
   mNewKey <- runDb $ insertUnique $ Task taskname $ entityKey usr
   case mNewKey of
     (Just key) -> return $ addHeader (taskLink key) key
-    Nothing -> throwE err409
+    Nothing -> throwError err409
 
 updateTask :: Text -> (Key Task) -> ClientTask -> AppM ()
 updateTask tkn key newtext = do
   usr <- liftValidate tkn
   mTask <- runDb $ get key
   case mTask of
-    Nothing -> throwE err404
+    Nothing -> throwError err404
     (Just task) -> if (entityKey usr == taskAuthorId task) then
                       runDb $ updateTaskName key newtext
-                   else throwE err403
+                   else throwError err403
 
 deleteTask :: Text -> Key Task -> AppM ()
 deleteTask = withTaskPerms (\_ key _ -> runDb $ delete key)
 
 withItemPerms :: (Entity User -> (Key Item) -> Item -> AppM b) -> Text -> (Key Item) -> AppM b
 withItemPerms f = withUserFrom f'
-  where f' = (\usr key item -> if (entityKey usr == itemUserId item) then (f usr key item) else throwE err403)
+  where f' = (\usr key item -> if (entityKey usr == itemUserId item) then (f usr key item) else throwError err403)
 
 
 getItem :: Text -> (Key Item) -> AppM ClientItem
@@ -172,18 +177,18 @@ newItem tkn ClientItem{..} = do
                                          itemDay=date, itemDuration=duration}
   case mNewKey of
     (Just key) -> return $ addHeader (itemLink key) key
-    Nothing -> throwE err409
+    Nothing -> throwError err409
 
 updateItem :: Text -> (Key Item) -> ClientItem -> AppM ()
 updateItem tkn key ClientItem{..} = do
   usr <- liftValidate tkn
   mItem <- runDb $ get key
   case mItem of
-    Nothing -> throwE err404
+    Nothing -> throwError err404
     (Just item) -> if (entityKey usr == itemUserId item) then
                        runDb $ replace key $ Item{itemTaskId=toSqlKey taskid, itemUserId=entityKey usr,
                                                         itemDay=date, itemDuration=duration}
-                   else throwE err403
+                   else throwError err403
 
 deleteItem :: Text -> Key Item -> AppM ()
 deleteItem = withItemPerms (\_ key _ -> runDb $ delete key)
@@ -229,7 +234,7 @@ getUser :: Text -> (Key User) -> AppM UserWithPerm
 getUser tkn key = do
   validateAdmin tkn
   target <- runDb $ get key
-  maybe (throwE err404) (return . toUserWithPerm) target
+  maybe (throwError err404) (return . toUserWithPerm) target
 
 
 newUser :: KnownSymbol h =>
@@ -242,14 +247,14 @@ newUser tkn UserWithPerm{..} = do
   mNewKey <- runDb $ insertUnique newuser
   case mNewKey of
     (Just key) -> return $ addHeader (userLink key) key
-    Nothing -> throwE err409
+    Nothing -> throwError err409
 
 updateUser :: Text -> (Key User) -> UserWithPerm -> AppM ()
 updateUser tkn key UserWithPerm{..} = do
   validateAdmin tkn
   mTarget <- runDb $ get key
   case mTarget of
-    Nothing -> throwE err404
+    Nothing -> throwError err404
     (Just target) -> reportDuplicateError =<< (runDb $ replaceUnique key $ target{userName=username, userAuth=auth, userPreferredHours=prefHours})
 
 deleteUser :: Text -> (Key User) -> AppM ()
@@ -277,7 +282,7 @@ getUsers tkn = do
 logout :: Text -> AppM ()
 logout tkn = do
   usr <- liftValidate tkn
-  liftIO $ Auth.logout $ userName $ entityVal usr
+  Auth.logout $ userName $ entityVal usr
 
 register :: KnownSymbol h =>
             Registration ->
@@ -287,44 +292,46 @@ register Registration{..} = do
   mNewKey <- runDb $ insertUnique user
   case mNewKey of
     (Just key) -> return $ addHeader profileLink ()
-    Nothing -> throwE err409
+    Nothing -> throwError err409
 
 login :: KnownSymbol h =>
          Registration ->
          AppM (Headers '[Header h URI] Text)
 login Registration{..} = do
-  tkn <- withExceptT decorateAuthError $ ExceptT $ Auth.login newUserName password
-  return $ addHeader itemsLink tkn
+  eitherTkn <- Auth.login newUserName password
+  case eitherTkn of
+    Right tkn -> return $ addHeader itemsLink tkn
+    Left e -> throwError $ decorateAuthError e
 
 
-server :: Servant.Server TimeAPI
+server :: ServerT TimeAPI AppM
 server = authApi
     :<|> register
     :<|> login
 
-crudAccessDenied e = const (throwE e)
-                :<|> const (throwE e)
-                :<|> const (const (throwE e))
-                :<|> const (throwE e)
+crudAccessDenied e = const (throwError e)
+                :<|> const (throwError e)
+                :<|> const (const (throwError e))
+                :<|> const (throwError e)
 
-crudHoursAccessDenied e = throwE e
-                     :<|> const (throwE e)
-                     :<|> const (throwE e)
-                     :<|> throwE e
+crudHoursAccessDenied e = throwError e
+                     :<|> const (throwError e)
+                     :<|> const (throwError e)
+                     :<|> throwError e
 
-crudProfileAccessDenied e = throwE e
-                       :<|> const (throwE e)
-                       :<|> throwE e
+crudProfileAccessDenied e = throwError e
+                       :<|> const (throwError e)
+                       :<|> throwError e
 
 authApi =  maybe (crudAccessDenied err403) taskCrud
      :<|>  maybe (crudAccessDenied err403) itemCrud
      :<|>  maybe (crudHoursAccessDenied err403) preferredHoursCrud
      :<|>  maybe (crudProfileAccessDenied err403) profileCrud
      :<|>  maybe (crudAccessDenied err403) userCrud
-     :<|>  maybe (throwE err403) getTasks
-     :<|>  maybe (const $ const $ throwE err403) getItems
-     :<|>  maybe (throwE err403) getUsers
-     :<|>  maybe (throwE err403) logout
+     :<|>  maybe (throwError err403) getTasks
+     :<|>  maybe (const $ const $ throwError err403) getItems
+     :<|>  maybe (throwError err403) getUsers
+     :<|>  maybe (throwError err403) logout
 
 type CRUDEndPoints ty clientTy = KnownSymbol h =>
                                  (Key ty -> AppM clientTy)
@@ -349,8 +356,11 @@ userCrud tkn = getUser tkn :<|> newUser tkn :<|> updateUser tkn :<|> deleteUser 
 api :: Proxy (TimeAPI :<|> Raw)
 api = Proxy
 
-mainServer :: Servant.ServerT (TimeAPI :<|> Raw) AppM
-mainServer = server :<|> Servant.serveDirectory "frontend"
+mainServer :: AppEnv -> Server (TimeAPI :<|> Raw)
+mainServer env = enter (withEnv env) server :<|> serveDirectory "frontend"
 
-app :: Application
-app = Servant.serve api mainServer
+withEnv :: AppEnv -> AppM :~> ExceptT ServantErr IO
+withEnv env = Nat (flip runReaderT env)
+
+app :: AppEnv -> Application
+app env = serve api $ mainServer env
