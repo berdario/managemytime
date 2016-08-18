@@ -2,33 +2,27 @@
 
 module ManageMyTime.Auth where
 
-import           Control.Arrow              ((&&&))
-import           Control.Monad.IO.Class     (liftIO)
-import           Control.Monad.Reader       (asks)
-import           Control.Monad.Trans.Except (throwE)
-import           Crypto.Scrypt              (EncryptedPass (..), Pass (..),
-                                             verifyPass')
-import           Data.Aeson                 (ToJSON)
-import           Data.Default               (def)
-import           Data.Text                  (Text)
-import           Data.Text.Encoding         (encodeUtf8)
-import           Data.Time.Clock.POSIX      (getPOSIXTime)
-import           Database.Persist.Sql       (Entity, entityVal, getBy)
-import           GHC.Conc                   (atomically)
-import           ManageMyTime.Models        (AppEnv (..), AppM, Token,
-                                             Unique (..), User (..), runDb,
-                                             userPasswordHash)
-import           ManageMyTime.Types
-import           Prelude                    hiding (exp, lookup)
-import           STMContainers.Map          (Map, delete, insert, lookup, newIO)
-import           System.IO.Unsafe           (unsafePerformIO)
-import           Web.JWT                    (Algorithm (..), IntDate, JSON, JWT,
-                                             JWTClaimsSet (..), StringOrURI,
-                                             UnverifiedJWT, VerifiedJWT, claims,
-                                             decodeAndVerifySignature,
-                                             encodeSigned, intDate,
-                                             secondsSinceEpoch, secret,
-                                             stringOrURI, stringOrURIToText)
+import           Control.Arrow          ((&&&))
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Reader   (asks)
+import           Crypto.Scrypt          (EncryptedPass (..), Pass (..),
+                                         verifyPass')
+import           Data.Default           (def)
+import           Data.Text              (Text)
+import           Data.Text.Encoding     (encodeUtf8)
+import           Data.Time.Clock.POSIX  (getPOSIXTime)
+import           Database.Persist.Sql   (Entity, entityVal, getBy)
+import           GHC.Conc               (atomically)
+import           ManageMyTime.Models    (AppEnv (..), AppM, Token, Unique (..),
+                                         User (..), runDb, userPasswordHash)
+import           Prelude                hiding (exp, lookup)
+import           STMContainers.Map      (insert, lookup)
+import           Web.JWT                (Algorithm (..), JSON, JWT,
+                                         JWTClaimsSet (..), NumericDate,
+                                         StringOrURI, VerifiedJWT, claims,
+                                         decodeAndVerifySignature, encodeSigned,
+                                         numericDate, secondsSinceEpoch, secret,
+                                         stringOrURI, stringOrURIToText)
 
 
 data ReasonInvalid = TokenCorrupted | TokenCorrupted2 | TokenExpired | LoggedOut | UserNameChanged deriving (Show)
@@ -44,13 +38,13 @@ encode = encodeSigned HS256 jwtSecret
 now :: IO Integer
 now = fmap round getPOSIXTime
 
-newExpiration :: IO (Maybe IntDate)
-newExpiration = fmap (intDate . fromIntegral . (+ 86401)) now
+newExpiration :: IO (Maybe NumericDate)
+newExpiration = fmap (numericDate . fromIntegral . (+ 86401)) now
 -- 86401 seconds ~= 1 Day
 
-isExpired :: IntDate -> AppM Bool
+isExpired :: NumericDate -> IO Bool
 isExpired d = do
-  now' <- liftIO now
+  now' <- now
   return $ ((secondsSinceEpoch d) < (fromIntegral now'))
 
 newTkn :: Text -> AppM (Either String JSON)
@@ -58,7 +52,7 @@ newTkn user = do
   expiration <- liftIO newExpiration
   sign (stringOrURI user) expiration
 
-sign :: Maybe StringOrURI -> Maybe IntDate -> AppM (Either String JSON)
+sign :: Maybe StringOrURI -> Maybe NumericDate -> AppM (Either String JSON)
 sign (Just user) (Just expiration) = do
   sessions <- asks getSessions
   liftIO $ atomically $ insert tkn (stringOrURIToText user) sessions
@@ -95,11 +89,11 @@ queryUser name = do
    mUser <- runDb $ getBy $ UniqueName name
    return $ maybe (Left UserNameChanged) Right mUser
 
-validateClaims :: Token -> (Maybe StringOrURI, Maybe IntDate) -> AppM EUser
+validateClaims :: Token -> (Maybe StringOrURI, Maybe NumericDate) -> AppM EUser
 validateClaims _ (Nothing, _) = return $ Left TokenCorrupted2
 validateClaims _ (_, Nothing) = return $ Left TokenCorrupted2
 validateClaims tkn ((Just name), (Just expiration)) = do
-   expired <- isExpired expiration
+   expired <- liftIO $ isExpired expiration
    if expired then (return $ Left TokenExpired) else (sessionCheck (stringOrURIToText name) tkn)
 
 sessionCheck :: Text -> Token -> AppM EUser

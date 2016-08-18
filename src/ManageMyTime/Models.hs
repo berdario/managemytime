@@ -18,27 +18,24 @@ module ManageMyTime.Models
 import           Data.Maybe
 
 import           Control.Arrow              ((&&&))
-import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Logger       (runStdoutLoggingT)
 import           Control.Monad.Reader       (ReaderT, asks)
 import           Control.Monad.Trans.Except (ExceptT)
-import           Crypto.Scrypt              (EncryptedPass, Pass (..),
-                                             encryptPassIO', getEncryptedPass)
-import           Data.Aeson                 (ToJSON)
+import           Crypto.Scrypt              (Pass (..), encryptPassIO',
+                                             getEncryptedPass)
 import           Data.ByteString            (ByteString)
-import           Data.Map.Strict            (Map, fromList)
+import           Data.Map.Strict            (fromList)
 import           Data.Text                  (Text)
 import           Data.Text.Encoding         (encodeUtf8)
 import           Data.Time.Calendar         (Day)
 import           Database.Persist.Class     (Unique)
 import           Database.Persist.Sql       (ConnectionPool, Entity, Key,
-                                             PersistFieldSql, SqlPersistT,
-                                             entityKey, entityVal, fromSqlKey,
-                                             get, getBy, insert, insertUnique,
-                                             runSqlPool, selectList, toSqlKey,
-                                             update, (<=.), (=.), (==.), (>=.))
-import           Database.Persist.Sqlite    (SqlBackend (..), createSqlitePool,
-                                             runMigration)
+                                             SqlPersistT, entityKey, entityVal,
+                                             fromSqlKey, get, insert,
+                                             insertUnique, runSqlPool,
+                                             selectList, toSqlKey, update,
+                                             (<=.), (=.), (==.), (>=.))
+import           Database.Persist.Sqlite    (createSqlitePool, runMigration)
 import           Database.Persist.TH        (mkMigrate, mkPersist,
                                              persistLowerCase, share,
                                              sqlSettings)

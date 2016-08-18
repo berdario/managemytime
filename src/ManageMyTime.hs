@@ -11,22 +11,16 @@ module ManageMyTime where
 
 import GHC.TypeLits (Symbol, KnownSymbol)
 import Control.Arrow ((&&&))
-import Control.Error.Util (note, noteT)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (runReaderT)
-import Control.Monad.Error (throwError)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (ExceptT)
-import Text.Read (readMaybe)
-import Data.Int (Int64)
 import Data.List (partition)
-import Data.Map (Map)
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack)
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Encoding (encodeUtf8)
-import Data.Aeson (ToJSON, FromJSON)
-import Data.Time.Calendar (Day, showGregorian)
+import Data.Time.Calendar (Day)
 import Data.Tuple.Extra (both)
 import Database.Persist.Sql (Entity, entityKey, PersistEntity, PersistEntityBackend, SqlBackend(..),
                              delete, replace, replaceUnique, entityVal, selectList)
@@ -38,7 +32,7 @@ import Servant (ServerT, Server, serveDirectory, serve, (:~>)(..), enter, URI)
 import Servant.API.ResponseHeaders (addHeader)
 import Servant.Utils.Links (safeLink, MkLink, IsElem, HasLink)
 
-import ManageMyTime.Models (AppEnv, AppM, Token, get, insertUnique, fromSqlKey, toSqlKey, doMigrations, runDb,
+import ManageMyTime.Models (AppEnv, AppM, Token, get, insertUnique, toSqlKey, runDb,
                             Key, Item(..), Task(..), User(..), createUser, updateTaskName,
                             toClientItem, userPreferredHours, setPreferredHours, userName,
                             Unique(..), pickSelect, toMap)
@@ -291,7 +285,7 @@ register Registration{..} = do
   user <- liftIO $ createUser newUserName password Normal Nothing
   mNewKey <- runDb $ insertUnique user
   case mNewKey of
-    (Just key) -> return $ addHeader profileLink ()
+    (Just _) -> return $ addHeader profileLink ()
     Nothing -> throwError err409
 
 login :: KnownSymbol h =>
@@ -333,7 +327,7 @@ authApi =  maybe (crudAccessDenied err403) taskCrud
      :<|>  maybe (throwError err403) getUsers
      :<|>  maybe (throwError err403) logout
 
-type CRUDEndPoints ty clientTy = KnownSymbol h =>
+type CRUDEndPoints ty clientTy = forall h. KnownSymbol h =>
                                  (Key ty -> AppM clientTy)
                                  :<|> ((clientTy -> AppM (Headers '[Header h Servant.URI] (Key ty)))
                                  :<|> ((Key ty -> clientTy -> AppM ())

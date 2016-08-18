@@ -18,7 +18,6 @@ import qualified Data.HashMap.Strict        as HashMap
 import           Data.Int                   (Int64)
 import qualified Data.Map                   as Map
 import           Data.Text                  (Text, pack, unpack)
-import           Data.Text.Encoding         (encodeUtf8)
 import           Data.Time.Calendar         (Day)
 import           Database.Persist           (toJsonText)
 import           Database.Persist.Sql       (Key)
