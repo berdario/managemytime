@@ -1,5 +1,5 @@
 http security headers (also: Vary ?)
 add cert pinning support to servant-client, to test code running on HTTPS (this would make it easy to use Secure cookies)
-generate documentation
+add newtypes for better documentation (frobnicate is used for both usernames and tokens)
 server side check for nonpositive durations
 test stack's containers and nix support
