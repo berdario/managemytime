@@ -64,6 +64,9 @@ instance (Ord k, ToSample k, ToSample v) => ToSample (EntityMap k v) where
 instance ToSample ClientItem where
     toSamples _ = singleSample $ ClientItem "minutes" 1 (fromGregorian 2015 8 23) 2
 
+instance ToSample () where
+    toSamples _ = singleSample ()
+
 instance ToParam (QueryParam "from" Day) where
     toParam _ =
         DocQueryParam "from"
