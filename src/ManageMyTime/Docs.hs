@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -64,8 +65,12 @@ instance (Ord k, ToSample k, ToSample v) => ToSample (EntityMap k v) where
 instance ToSample ClientItem where
     toSamples _ = singleSample $ ClientItem "minutes" 1 (fromGregorian 2015 8 23) 2
 
+#if MIN_VERSION_servant(0,8,0)
+-- We should use NoContent, rather than ()... but we use Servant 0.7.1 for ghc7.10
+
 instance ToSample () where
     toSamples _ = singleSample ()
+#endif
 
 instance ToParam (QueryParam "from" Day) where
     toParam _ =
